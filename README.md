@@ -23,6 +23,10 @@ Race-Engineer is an Electron desktop app for real-time iRacing telemetry with a 
 2. Electron starts the Python backend and a detached event collector automatically.
 3. The app window opens and loads Race-Engineer directly.
 
+To save local changes to GitHub, double-click `commit_to_github.bat`. Enter a commit
+message, or press Enter to use the default. The script commits the changes, synchronizes
+with `main`, and pushes them to `FonzieDK/Race-Engineer`.
+
 The event collector keeps running after the Race-Engineer window is closed. It reads the local
 iRacing SDK feed and stores events in `sql/events.db`, so closing the browser or Electron does
 not interrupt collection. Its single-instance lock prevents duplicate collectors. The first
