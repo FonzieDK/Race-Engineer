@@ -1,0 +1,18 @@
+import math
+import unittest
+
+from telemetry import TelemetryReader
+
+
+class TelemetryReaderWeatherTests(unittest.TestCase):
+    def test_relative_humidity_ratio_is_returned_as_percent(self):
+        self.assertAlmostEqual(TelemetryReader._humidity_percent(0.42), 42.0)
+        self.assertEqual(TelemetryReader._humidity_percent(65.0), 65.0)
+
+    def test_wind_direction_radians_are_returned_as_degrees(self):
+        self.assertAlmostEqual(TelemetryReader._wind_direction_degrees(0.0), 0.0)
+        self.assertAlmostEqual(TelemetryReader._wind_direction_degrees(math.pi), 180.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

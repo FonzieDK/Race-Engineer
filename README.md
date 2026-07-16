@@ -1,0 +1,79 @@
+# iRacing Pit Wall Tool
+
+An Electron desktop app for iRacing telemetry with a Python backend.
+
+## Requirements
+
+- Windows OS
+- Python 3.6+
+- iRacing simulator installed and running
+- Node.js (required for the Electron desktop app)
+
+## Setup
+
+1. Ensure Python 3.6 or higher is installed on your system.
+2. Run the setup script: `python setup_iracing_env.py`
+   - This creates a virtual environment, installs Python dependencies, and checks for iRacing.
+3. If iRacing is not running, start it before launching the pit wall.
+4. Install Electron dependencies: `npm install`
+
+## Usage
+
+1. Run `start_pitwall.bat` to launch the pit wall.
+2. Electron starts the Python backend and a detached event collector automatically.
+3. The app window opens and loads the pit wall dashboard directly.
+
+The event collector keeps running after the Pit Wall window is closed. It reads the local
+iRacing SDK feed and stores events in `sql/events.db`, so closing the browser or Electron does
+not interrupt collection. Its single-instance lock prevents duplicate collectors. The first
+normal launch registers a collector-only Windows login start, so later reboots restart data
+collection without opening the Pit Wall window.
+
+## Features
+
+- Live fuel level monitoring
+- Lap time display
+- Tire wear tracking
+- Pit stop recommendations
+- Configurable refresh rate and thresholds
+
+## Configuration
+
+Edit `config.json` to adjust settings:
+- `refresh_rate`: Update interval in seconds
+- `fuel_warning_threshold`: Fuel level threshold for pit alerts
+- `tire_wear_warning`: Tire wear threshold (0-1)
+- `pit_loss_seconds`: Estimated net time lost to a pit stop, used for the pit-exit traffic prediction
+
+## Importing missing race events
+
+The event database records position changes, driver swaps, and incidents while the independent
+collector is connected. Missing events from before the collector started can be added after a
+session without controlling iRacing's replay:
+
+1. Open the completed session in iRacing Results.
+2. Download the JSON data for Results, Event Log, and Lap Chart.
+3. Open the leaderboard screen and click the `+` button beside the event filters.
+4. Select the downloaded JSON files together.
+
+The importer recognizes the three official result payloads. Lap Chart snapshots and live SDK
+snapshots pass through the same `EventReconstructor`, then merge into `sql/events.db` using
+stable content-derived IDs. Re-importing the same data is safe. Incidents are only read from
+iRacing incident totals or Event Log/Lap Chart incident data; position loss is never treated as
+an incident. Direct downloads from the iRacing Data API require an iRacing OAuth client ID;
+anonymous requests and legacy username/password authentication are intentionally not used.
+- `fuel_fill_rate_lps`: Estimated refuelling speed in litres per second
+- `tire_change_seconds`: Estimated stationary time when tires are selected in iRacing's F5 black box
+
+## Future Enhancements
+
+- Advanced pit strategy calculations
+- Data logging and analysis
+- Real-time strategy suggestions
+
+## Troubleshooting
+
+- Ensure iRacing is running before starting the pit wall.
+- If connection fails, check that iRacing is not in replay mode.
+- For issues with dependencies, try reinstalling with `python setup_iracing_env.py`.
+- If Electron does not open, make sure Node.js is installed and run `npm install`.

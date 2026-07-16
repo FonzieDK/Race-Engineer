@@ -1,0 +1,18 @@
+{
+  "Road America": {
+    "file": "tracks/road_america_source.svg",
+    "label": "Road America"
+  },
+  "Spa-Francorchamps": {
+    "file": "tracks/spa_source.svg",
+    "label": "Spa-Francorchamps"
+  },
+  "Le Mans": {
+    "file": "tracks/le_mans_source.svg",
+    "label": "Le Mans"
+  },
+  "Road Atlanta": {
+    "file": "tracks/road_atlanta_source.svg",
+    "label": "Road Atlanta"
+  }
+}

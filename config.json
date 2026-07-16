@@ -1,0 +1,11 @@
+{
+    "host": "127.0.0.1",
+    "port": 8080,
+    "refresh_rate": 0.03333333333333333,
+    "ui_refresh_rate_ms": 33,
+    "fuel_warning_threshold": 5.0,
+    "tire_wear_warning": 0.8,
+    "pit_loss_seconds": 25.0,
+    "fuel_fill_rate_lps": 2.5,
+    "tire_change_seconds": 20.0
+}

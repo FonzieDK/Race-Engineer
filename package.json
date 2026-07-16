@@ -1,0 +1,13 @@
+{
+  "name": "iracing-pit-wall",
+  "version": "1.0.0",
+  "description": "Electron app for iRacing pit wall telemetry",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "electron": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.0.0"
+  }
+}

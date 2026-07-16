@@ -1,0 +1,6 @@
+pyirsdk
+requests
+websocket-client
+pandas
+psutil
+numpy
