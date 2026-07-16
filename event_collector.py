@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persistent iRacing event collector, independent of the Pit Wall window."""
+"""Persistent iRacing event collector, independent of the Race-Engineer window."""
 from __future__ import annotations
 
 import atexit

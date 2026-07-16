@@ -1,6 +1,6 @@
-# iRacing Pit Wall Tool
+# Race-Engineer
 
-An Electron desktop app for iRacing telemetry with a Python backend.
+Race-Engineer is an Electron desktop app for real-time iRacing telemetry with a Python backend.
 
 ## Requirements
 
@@ -14,20 +14,20 @@ An Electron desktop app for iRacing telemetry with a Python backend.
 1. Ensure Python 3.6 or higher is installed on your system.
 2. Run the setup script: `python setup_iracing_env.py`
    - This creates a virtual environment, installs Python dependencies, and checks for iRacing.
-3. If iRacing is not running, start it before launching the pit wall.
+3. If iRacing is not running, start it before launching Race-Engineer.
 4. Install Electron dependencies: `npm install`
 
 ## Usage
 
-1. Run `start_pitwall.bat` to launch the pit wall.
+1. Run `start_race_engineer.bat` to launch Race-Engineer.
 2. Electron starts the Python backend and a detached event collector automatically.
-3. The app window opens and loads the pit wall dashboard directly.
+3. The app window opens and loads Race-Engineer directly.
 
-The event collector keeps running after the Pit Wall window is closed. It reads the local
+The event collector keeps running after the Race-Engineer window is closed. It reads the local
 iRacing SDK feed and stores events in `sql/events.db`, so closing the browser or Electron does
 not interrupt collection. Its single-instance lock prevents duplicate collectors. The first
 normal launch registers a collector-only Windows login start, so later reboots restart data
-collection without opening the Pit Wall window.
+collection without opening the Race-Engineer window.
 
 ## Features
 
@@ -73,7 +73,7 @@ anonymous requests and legacy username/password authentication are intentionally
 
 ## Troubleshooting
 
-- Ensure iRacing is running before starting the pit wall.
+- Ensure iRacing is running before starting Race-Engineer.
 - If connection fails, check that iRacing is not in replay mode.
 - For issues with dependencies, try reinstalling with `python setup_iracing_env.py`.
 - If Electron does not open, make sure Node.js is installed and run `npm install`.

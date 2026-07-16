@@ -155,7 +155,7 @@ function startBackend() {
 
   const pythonPath = getPythonPath();
   const mainScriptPath = path.join(getProjectRoot(), "main.py");
-  appendLog("pitwall-electron.log", `Starting backend: ${pythonPath} ${mainScriptPath}`);
+  appendLog("race-engineer-electron.log", `Starting backend: ${pythonPath} ${mainScriptPath}`);
 
   backendProcess = spawn(pythonPath, [mainScriptPath], {
     cwd: getProjectRoot(),
@@ -169,7 +169,7 @@ function startBackend() {
 
   let stderr = "";
   backendProcess.stdout.on("data", (chunk) => {
-    appendLog("pitwall-backend.log", chunk.toString().trimEnd());
+    appendLog("race-engineer-backend.log", chunk.toString().trimEnd());
   });
 
   backendProcess.stderr.on("data", (chunk) => {
@@ -178,11 +178,11 @@ function startBackend() {
     if (stderr.length > 4000) {
       stderr = stderr.slice(-4000);
     }
-    appendLog("pitwall-backend.log", text.trimEnd());
+    appendLog("race-engineer-backend.log", text.trimEnd());
   });
 
   backendProcess.on("exit", (code) => {
-    appendLog("pitwall-electron.log", `Backend exited with code ${code ?? "null"}`);
+    appendLog("race-engineer-electron.log", `Backend exited with code ${code ?? "null"}`);
     if (!isQuitting && code !== 0) {
       console.error(`Backend process exited with code ${code}`, stderr);
     }
@@ -191,14 +191,14 @@ function startBackend() {
     if (!isQuitting && !backendRestartTimer) {
       backendRestartTimer = setTimeout(() => {
         backendRestartTimer = null;
-        appendLog("pitwall-electron.log", "Restarting backend after unexpected exit");
+        appendLog("race-engineer-electron.log", "Restarting backend after unexpected exit");
         startBackend();
       }, 1000);
     }
   });
 
   backendProcess.on("error", (error) => {
-    appendLog("pitwall-electron.log", `Failed to start backend process: ${error.message}`);
+    appendLog("race-engineer-electron.log", `Failed to start backend process: ${error.message}`);
     console.error("Failed to start backend process:", error);
   });
 
@@ -220,10 +220,10 @@ function startEventCollector() {
     env: { ...process.env, PYTHONUNBUFFERED: "1" },
   });
   collectorProcess.on("error", (error) => {
-    appendLog("pitwall-electron.log", `Failed to start event collector: ${error.message}`);
+    appendLog("race-engineer-electron.log", `Failed to start event collector: ${error.message}`);
     collectorProcess = null;
   });
-  // The collector deliberately outlives Electron/Pit Wall.
+  // The collector deliberately outlives the Race-Engineer window.
   collectorProcess.unref();
 }
 
@@ -235,7 +235,7 @@ function createWindow() {
     minHeight: 760,
     autoHideMenuBar: true,
     backgroundColor: "#06080b",
-    title: "iRacing Pit Wall",
+    title: "Race-Engineer",
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -250,7 +250,7 @@ function createWindow() {
 
 async function bootApp() {
   createWindow();
-  const loadingHtml = "<body style='margin:0;background:#06080b;color:#edf3f8;font-family:Segoe UI,Tahoma,sans-serif;display:grid;place-items:center;height:100vh;'><div><h2 style='margin:0 0 12px;'>Starting Pit Wall</h2><p style='margin:0;color:#8e9daa;'>Launching telemetry backend and Electron shell...</p></div></body>";
+  const loadingHtml = "<body style='margin:0;background:#06080b;color:#edf3f8;font-family:Segoe UI,Tahoma,sans-serif;display:grid;place-items:center;height:100vh;'><div><h2 style='margin:0 0 12px;'>Starting Race-Engineer</h2><p style='margin:0;color:#8e9daa;'>Launching telemetry backend and Electron shell...</p></div></body>";
   mainWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(loadingHtml)}`);
 
   let getBackendError = null;
@@ -265,19 +265,19 @@ async function bootApp() {
       typeof getBackendError === "function" ? getBackendError() : "";
     const message = error instanceof Error ? error.message : String(error);
     dialog.showErrorBox(
-      "Unable to start Pit Wall",
+      "Unable to start Race-Engineer",
       `Electron could not start the backend.\n\n${message}${backendError ? `\n\nBackend error:\n${backendError}` : ""}`
     );
     app.quit();
   }
 }
 
-ipcMain.handle("pitwall:restart", () => {
+ipcMain.handle("race-engineer:restart", () => {
   if (isQuitting) {
     return false;
   }
 
-  appendLog("pitwall-electron.log", "Restart requested from dashboard");
+  appendLog("race-engineer-electron.log", "Restart requested from Race-Engineer");
   app.relaunch();
   app.quit();
   return true;

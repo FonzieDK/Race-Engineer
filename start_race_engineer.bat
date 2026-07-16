@@ -3,7 +3,7 @@ setlocal
 
 cd /d "%~dp0"
 
-echo Starting iRacing Pit Wall Electron app...
+echo Starting Race-Engineer Electron app...
 
 echo Checking runtime dependencies...
 
@@ -61,7 +61,7 @@ if not defined NODE_EXE (
     echo.
 )
 
-echo Closing old Pit Wall processes...
+echo Closing old Race-Engineer processes...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = (Resolve-Path '.').Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'electron.exe' -and $_.CommandLine -like ('*' + $root + '*')) -or ($_.Name -eq 'python.exe' -and $_.CommandLine -like ('*' + $root + '*main.py*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 set "ELECTRON_APP=%APP_ROOT%."

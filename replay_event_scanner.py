@@ -22,7 +22,7 @@ class ReplayEventScanner:
         self.tracker = tracker
         self.scan_speed = max(2, min(16, int(scan_speed)))
         # Seeking a replay changes iRacing's playback state. Keep that behavior
-        # opt-in so merely starting Pit Wall can never pause or seek the sim.
+        # opt-in so merely starting Race-Engineer can never pause or seek the sim.
         self.enabled = bool(enabled)
         self._lock = Lock()
         self._session_key: str | None = None

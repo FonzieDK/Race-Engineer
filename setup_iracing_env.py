@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for iRacing Pit Wall tool.
+Setup script for Race-Engineer.
 Checks Python installation, creates virtual environment, installs dependencies, and verifies iRacing availability.
 """
 
@@ -43,17 +43,17 @@ def check_iracing_running():
         if proc.info['name'] == 'iRacing.exe':
             print("iRacing is running.")
             return True
-    print("Warning: iRacing does not appear to be running. The pit wall tool requires iRacing to be active.")
+    print("Warning: iRacing does not appear to be running. Race-Engineer requires iRacing to be active.")
     return False
 
 def main():
-    print("Setting up iRacing Pit Wall environment...")
+    print("Setting up the Race-Engineer environment...")
     try:
         check_python_version()
         create_virtual_env()
         install_requirements()
         check_iracing_running()
-        print("Setup complete. Run start_pitwall.bat to launch the pit wall.")
+        print("Setup complete. Run start_race_engineer.bat to launch Race-Engineer.")
     except Exception as e:
         print(f"Setup failed: {e}")
         sys.exit(1)

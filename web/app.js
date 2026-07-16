@@ -2,7 +2,7 @@ const refreshRateControls = Array.from(document.querySelectorAll(".refresh-rate-
 const refreshRateToggles = Array.from(document.querySelectorAll(".refresh-rate-toggle"));
 const refreshRateValues = Array.from(document.querySelectorAll(".refresh-rate-value"));
 const refreshRateOptions = Array.from(document.querySelectorAll(".refresh-rate-option"));
-const restartPitwallEl = document.getElementById("restart-pitwall");
+const restartRaceEngineerEl = document.getElementById("restart-race-engineer");
 const sessionTimeEl = document.getElementById("session-time");
 const lapsRemainingEl = document.getElementById("laps-remaining");
 const pitRoadStatusEl = document.getElementById("pit-road-status");
@@ -188,8 +188,8 @@ const HEAVY_RENDER_INTERVAL_MS = 100;
 const MAP_RENDER_INTERVAL_MS = 1000 / 60;
 const LEADERBOARD_POSITION_ANIMATION_MS = 520;
 const FOLLOW_MAP_ROAD_INTERVAL_MS = 50;
-const VIEWED_EVENTS_STORAGE_KEY = "pitwall.viewed-events.v1";
-const SAVED_EVENTS_STORAGE_KEY = "pitwall.saved-events.v1";
+const VIEWED_EVENTS_STORAGE_KEY = "race-engineer.viewed-events.v1";
+const SAVED_EVENTS_STORAGE_KEY = "race-engineer.saved-events.v1";
 
 const TRACK_MAP_LABELS = {
   "track-map": "Track Map",
@@ -427,16 +427,16 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-restartPitwallEl?.addEventListener("click", async () => {
-  if (restartPitwallEl.disabled) return;
+restartRaceEngineerEl?.addEventListener("click", async () => {
+  if (restartRaceEngineerEl.disabled) return;
 
-  restartPitwallEl.disabled = true;
-  restartPitwallEl.classList.add("is-restarting");
-  restartPitwallEl.querySelector("span").textContent = "Restarting";
+  restartRaceEngineerEl.disabled = true;
+  restartRaceEngineerEl.classList.add("is-restarting");
+  restartRaceEngineerEl.querySelector("span").textContent = "Restarting";
 
-  if (window.pitwall?.restartApp) {
+  if (window.raceEngineer?.restartApp) {
     try {
-      await window.pitwall.restartApp();
+      await window.raceEngineer.restartApp();
       return;
     } catch (error) {
       // Fall through to a page reload when Electron IPC is unavailable.
@@ -2196,7 +2196,7 @@ function renderState(snapshot, frameTime = performance.now()) {
     && Date.now() - updatedAtMs <= freshnessLimitMs
   );
   // Old frames are deliberately not rendered. A frozen value is more
-  // dangerous on a pit wall than an explicit unavailable marker.
+  // dangerous trackside than an explicit unavailable marker.
   const telemetry = hasRecentTelemetry ? sourceTelemetry : {};
   latestMapTelemetry = telemetry;
   latestStandings = telemetry.standings || [];
@@ -2367,7 +2367,7 @@ async function loadState() {
     if (Date.now() - lastSnapshotAt > 5000) {
       scheduleRender({
         connected: false,
-        error: "Unable to reach Pit Wall backend",
+        error: "Unable to reach Race-Engineer backend",
         status: "Disconnected",
         telemetry: null,
         alerts: ["Check that the backend is running and reachable."],

@@ -94,7 +94,7 @@ body {
   font-size: 1rem;
 }
 
-.pitwall-shell {
+.race-engineer-shell {
   width: min(1800px, calc(100% - 20px));
   height: 100dvh;
   margin: 0 auto;
@@ -388,7 +388,7 @@ body {
   }
 }
 
-.restart-pitwall {
+.restart-race-engineer {
   width: 74px;
   min-height: 58px;
   display: grid;
@@ -404,7 +404,7 @@ body {
   transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
 }
 
-.restart-pitwall svg {
+.restart-race-engineer svg {
   width: 22px;
   height: 22px;
   fill: none;
@@ -414,27 +414,27 @@ body {
   stroke-linejoin: round;
 }
 
-.restart-pitwall span {
+.restart-race-engineer span {
   text-transform: uppercase;
   letter-spacing: 0.11em;
   font-size: 0.52rem;
   font-weight: 700;
 }
 
-.restart-pitwall:hover,
-.restart-pitwall:focus-visible {
+.restart-race-engineer:hover,
+.restart-race-engineer:focus-visible {
   color: var(--accent);
   border-color: rgba(150, 255, 67, 0.42);
   background: rgba(150, 255, 67, 0.08);
   outline: none;
 }
 
-.restart-pitwall:disabled {
+.restart-race-engineer:disabled {
   cursor: wait;
   opacity: 0.78;
 }
 
-.restart-pitwall.is-restarting svg {
+.restart-race-engineer.is-restarting svg {
   animation: restart-spin 800ms linear infinite;
 }
 
@@ -2240,7 +2240,7 @@ body {
 }
 
 @media (max-width: 1320px), (max-height: 1080px) {
-  .pitwall-shell {
+  .race-engineer-shell {
     width: 100%;
     padding: 7px;
   }
@@ -2275,7 +2275,7 @@ body {
     min-height: 48px;
   }
 
-  .restart-pitwall {
+  .restart-race-engineer {
     width: 62px;
     min-height: 50px;
   }
@@ -2466,7 +2466,7 @@ body {
 }
 
 @media (max-width: 620px) {
-  .pitwall-shell {
+  .race-engineer-shell {
     width: min(100% - 8px, 100%);
     margin: 4px auto;
     padding: 4px;

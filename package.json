@@ -1,7 +1,7 @@
 {
-  "name": "iracing-pit-wall",
+  "name": "race-engineer",
   "version": "1.0.0",
-  "description": "Electron app for iRacing pit wall telemetry",
+  "description": "Race-Engineer desktop app for iRacing telemetry",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",

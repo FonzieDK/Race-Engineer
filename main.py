@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-iRacing Pit Wall local web server.
+Race-Engineer local web server.
 Serves telemetry on localhost for a browser or Electron shell.
 """
 
@@ -36,7 +36,7 @@ RACE_EVENT_TRACKER = RaceEventTracker(EVENT_STORE)
 REPLAY_EVENT_SCANNER = ReplayEventScanner(
     EVENT_STORE,
     RACE_EVENT_TRACKER,
-    # Pit Wall must never seek, stop, or change replay speed automatically.
+    # Race-Engineer must never seek, stop, or change replay speed automatically.
     # Historical gaps are handled by the detached collector/results import.
     enabled=False,
 )
@@ -80,7 +80,7 @@ def _find_iracing_track_folder(track_internal_name: str) -> str | None:
 
 
 def _fetch_text(url: str, timeout: float = 4.0) -> str:
-    request = Request(url, headers={"User-Agent": "iRacing-Pit-Wall/1.0"})
+    request = Request(url, headers={"User-Agent": "Race-Engineer/1.0"})
     with urlopen(request, timeout=timeout) as response:
         content_type = response.headers.get("Content-Type", "")
         if "svg" not in content_type.lower():
@@ -328,7 +328,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
 
         with state_lock:
             state.connected = True
-            state.status = "Pit Wall active"
+            state.status = "Race-Engineer active"
             state.error = None
         publish_snapshot()
 
@@ -366,7 +366,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
                             state.telemetry = data
                             state.alerts = alerts
                             state.updated_at = time.time()
-                            state.status = "Pit Wall active"
+                            state.status = "Race-Engineer active"
                             state.error = None
                         publish_snapshot()
                 except Exception as exc:
@@ -394,7 +394,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
                 stop_event.wait(refresh_interval_seconds())
 
 
-class PitWallHandler(BaseHTTPRequestHandler):
+class RaceEngineerHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed_url = urlparse(self.path)
         request_path = parsed_url.path
@@ -767,8 +767,8 @@ def main() -> None:
     )
     worker.start()
 
-    server = ThreadingHTTPServer((host, port), PitWallHandler)
-    print(f"Pit Wall server running at http://{host}:{port}")
+    server = ThreadingHTTPServer((host, port), RaceEngineerHandler)
+    print(f"Race-Engineer server running at http://{host}:{port}")
     print("Press Ctrl+C to stop.")
 
     try:
