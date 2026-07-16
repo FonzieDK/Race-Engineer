@@ -6,7 +6,7 @@ const test = require("node:test");
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
 const script = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
-const server = fs.readFileSync(path.join(root, "main.py"), "utf8");
+const server = fs.readFileSync(path.join(root, "race_engineer", "server.py"), "utf8");
 
 test("event panel has no manual import control", () => {
   assert.doesNotMatch(html, /id="event-import-results"/);

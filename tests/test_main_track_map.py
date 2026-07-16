@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-import main
+from race_engineer import server as main
 
 
 ACTIVE_SVG = """<svg viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">

@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title Race-Engineer - Commit to GitHub
 
 set "GIT_EXE=git"

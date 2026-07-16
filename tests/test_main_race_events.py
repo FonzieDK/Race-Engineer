@@ -1,6 +1,6 @@
 import unittest
 
-import main
+from race_engineer import server as main
 
 
 class CurrentRaceSessionTests(unittest.TestCase):

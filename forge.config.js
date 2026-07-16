@@ -11,9 +11,7 @@ module.exports = {
       path.join(__dirname, "tracks.json"),
     ],
     ignore: [
-      /^\/(?:\.build-tools|\.git|build|dist-python|logs|out|sql|tests|venv)(?:\/|$)/,
-      /^\/(?:commit_to_github\.bat|requirements-build\.txt|requirements\.txt|setup_iracing_env\.py|start_race_engineer\.bat)$/,
-      /^\/.*\.py$/,
+      /^\/(?:\.build-tools|\.git|build|dist-python|logs|out|race_engineer|requirements|scripts|sql|tests|venv)(?:\/|$)/,
     ],
   },
   makers: [
@@ -33,4 +31,3 @@ module.exports = {
     },
   ],
 };
-

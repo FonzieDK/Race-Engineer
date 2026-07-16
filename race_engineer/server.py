@@ -20,13 +20,12 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-from event_store import EventStore
-from iracing_results import IracingResultsImporter
-from pit_strategy import PitStrategy
-from race_event_tracker import RaceEventTracker
-from replay_event_scanner import ReplayEventScanner
-from telemetry import TelemetryReader
-from runtime_paths import CONFIG_PATH, DATABASE_PATH, RESOURCE_DIR, TRACKS_PATH, WEB_DIR
+from race_engineer.events.replay_scanner import ReplayEventScanner
+from race_engineer.events.results import IracingResultsImporter
+from race_engineer.events.store import EventStore
+from race_engineer.events.tracker import RaceEventTracker
+from race_engineer.paths import CONFIG_PATH, DATABASE_PATH, RESOURCE_DIR, TRACKS_PATH, WEB_DIR
+from race_engineer.telemetry import TelemetryReader
 
 
 BASE_DIR = RESOURCE_DIR
@@ -114,11 +113,6 @@ def _closed_track_paths(svg: str) -> list[str]:
     path_data = match.group(1).strip()
     closed = re.findall(r"[mM].*?[zZ]", path_data, re.DOTALL)
     return [item.strip() for item in closed] or [path_data]
-
-
-def _first_closed_path(svg: str) -> str | None:
-    paths = _closed_track_paths(svg)
-    return paths[0] if paths else None
 
 
 def build_official_track_svg(track_id: Any, track_internal_name: Any) -> str | None:
@@ -289,9 +283,19 @@ def publish_snapshot() -> None:
                     pass
 
 
+def tire_wear_alert(tire_wear: dict[str, Any], threshold: float) -> str | None:
+    for position, wear in tire_wear.items():
+        if isinstance(wear, (int, float)) and wear > threshold:
+            return f"Tire wear high on {position}: {wear:.2f}"
+    return None
+
+
 def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
     global telemetry_reader
-    strategy = PitStrategy(str(CONFIG_PATH))
+    try:
+        tire_wear_threshold = float(config.get("tire_wear_warning", 0.8))
+    except (TypeError, ValueError):
+        tire_wear_threshold = 0.8
 
     while not stop_event.is_set():
         telemetry = TelemetryReader(
@@ -309,9 +313,6 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
             state.status = "Connecting to iRacing"
             state.error = None
         publish_snapshot()
-
-        fuel_per_lap = 0.0
-        laps_remaining = 10
 
         if not telemetry.connect():
             telemetry_reader = None
@@ -341,13 +342,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
                         data["event_scan"] = REPLAY_EVENT_SCANNER.update(data, telemetry)
                         alerts: list[str] = []
 
-                        if data.get("is_player_car") and data.get("fuel_level") is not None:
-                            pit_needed, pit_msg = strategy.calculate_pit_stop(
-                                data["fuel_level"], laps_remaining, fuel_per_lap
-                            )
-                            if pit_needed:
-                                alerts.append(pit_msg)
-                        else:
+                        if not data.get("is_player_car"):
                             alerts.append(
                                 "Fuel and tire telemetry are only available for your own car. "
                                 "Focused car data uses iRacing's CarIdx fields."
@@ -357,9 +352,12 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
                         if data.get("is_player_car") and all(
                             tire_wear.get(position) is not None for position in ("lf", "rf", "lr", "rr")
                         ):
-                            tire_needed, tire_msg = strategy.check_tire_wear(tire_wear)
-                            if tire_needed:
-                                alerts.append(tire_msg)
+                            tire_message = tire_wear_alert(
+                                tire_wear,
+                                tire_wear_threshold,
+                            )
+                            if tire_message:
+                                alerts.append(tire_message)
 
                         with state_lock:
                             state.connected = True

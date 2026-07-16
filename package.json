@@ -6,11 +6,12 @@
   "author": "InfiNxt",
   "main": "electron/main.js",
   "scripts": {
+    "test": "python -m unittest discover -s tests -p \"test_*.py\" && node --test tests/*.js",
     "start": "electron .",
     "electron": "electron .",
     "package": "electron-forge package --platform win32 --arch x64",
     "make": "electron-forge make --platform win32 --arch x64",
-    "make:msi": "powershell -NoProfile -ExecutionPolicy Bypass -File build-msi.ps1"
+    "make:msi": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-msi.ps1"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",

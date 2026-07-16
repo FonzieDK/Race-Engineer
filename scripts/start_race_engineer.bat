@@ -1,16 +1,16 @@
 @echo off
 setlocal
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo Starting Race-Engineer Electron app...
 
 echo Checking runtime dependencies...
 
 set "SCRIPT_DIR=%~dp0"
-set "APP_ROOT=%SCRIPT_DIR%"
-set "PYTHON_EXE=%SCRIPT_DIR%venv\Scripts\python.exe"
-set "ELECTRON_EXE=%SCRIPT_DIR%node_modules\electron\dist\electron.exe"
+set "APP_ROOT=%SCRIPT_DIR%..\"
+set "PYTHON_EXE=%APP_ROOT%venv\Scripts\python.exe"
+set "ELECTRON_EXE=%APP_ROOT%node_modules\electron\dist\electron.exe"
 set "NODE_EXE="
 set "NPM_CMD="
 
@@ -23,7 +23,7 @@ if not defined NPM_CMD if exist "%ProgramFiles%\nodejs\npm.cmd" set "NPM_CMD=%Pr
 if not exist "%PYTHON_EXE%" (
     echo.
     echo ERROR: Python virtual environment was not found.
-    echo Create it by running: python setup_iracing_env.py
+    echo Create it by running: python scripts/setup_iracing_env.py
     echo.
     pause
     exit /b 1
@@ -33,7 +33,7 @@ if not exist "%PYTHON_EXE%" (
 if errorlevel 1 (
     echo.
     echo ERROR: Python virtual environment is unavailable or invalid.
-    echo Delete the venv folder and run: python setup_iracing_env.py
+    echo Delete the venv folder and run: python scripts/setup_iracing_env.py
     echo.
     pause
     exit /b 1
@@ -62,7 +62,7 @@ if not defined NODE_EXE (
 )
 
 echo Closing old Race-Engineer processes...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = (Resolve-Path '.').Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'electron.exe' -and $_.CommandLine -like ('*' + $root + '*')) -or ($_.Name -eq 'python.exe' -and $_.CommandLine -like ('*' + $root + '*main.py*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = (Resolve-Path '.').Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'electron.exe' -and $_.CommandLine -like ('*' + $root + '*')) -or ($_.Name -eq 'python.exe' -and $_.CommandLine -like '*race_engineer.server*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 set "ELECTRON_APP=%APP_ROOT%."
 start "" "%ELECTRON_EXE%" "%ELECTRON_APP%"

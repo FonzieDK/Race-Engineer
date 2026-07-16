@@ -51,7 +51,7 @@ function getPythonRuntime(mode) {
 
   return {
     command: mode === "collector" ? getWindowlessPythonPath() : getPythonPath(),
-    args: [path.join(getProjectRoot(), mode === "collector" ? "event_collector.py" : "main.py")],
+    args: ["-m", mode === "collector" ? "race_engineer.events.collector" : "race_engineer.server"],
   };
 }
 

@@ -29,15 +29,16 @@ Node.js, Electron, or WiX. The installer creates Start-menu and desktop shortcut
 Writable configuration, logs, and the event database are stored below the current
 user's `%APPDATA%\Race-Engineer` directory rather than in `Program Files`.
 
-To save local changes to GitHub, double-click `commit_to_github.bat`. Enter a commit
+To save local changes to GitHub, double-click `scripts/commit_to_github.bat`. Enter a commit
 message, or press Enter to use the default. The script commits the changes, synchronizes
 with `main`, and pushes them to `FonzieDK/Race-Engineer`.
 
 The event collector keeps running after the Race-Engineer window is closed. It reads the local
-iRacing SDK feed and stores events in `sql/events.db`, so closing the browser or Electron does
-not interrupt collection. Its single-instance lock prevents duplicate collectors. The first
-normal launch registers a collector-only Windows login start, so later reboots restart data
-collection without opening the Race-Engineer window.
+iRacing SDK feed, so closing Electron does not interrupt event collection. Its single-instance
+lock prevents duplicate collectors. A normal launch registers a collector-only Windows login
+start, so later reboots restart collection without opening the Race-Engineer window. Development
+data is stored in `sql/events.db`; an installed app stores it in
+`%APPDATA%\Race-Engineer\sql\events.db`.
 
 ## OVERVIEW
 
@@ -65,7 +66,7 @@ collection without opening the Race-Engineer window.
 - Clickable and keyboard-accessible rows for changing the focused iRacing camera car
 - Race-event feed for position changes, driver swaps, incidents, and saved events
 - Event saving and timed replay playback with an automatic return to the live session
-- Automatic replay scanning and import of official iRacing Results, Event Log, and Lap Chart JSON files
+- Background event collection that continues after the dashboard window is closed
 
 ## TRACK MAP
 
@@ -84,30 +85,60 @@ collection without opening the Race-Engineer window.
 ## Configuration
 
 Edit `config.json` to adjust settings:
-- `refresh_rate`: Update interval in seconds
-- `fuel_warning_threshold`: Fuel level threshold for pit alerts
-- `tire_wear_warning`: Tire wear threshold (0-1)
-- `pit_loss_seconds`: Estimated net time lost to a pit stop, used for the pit-exit traffic prediction
 
-## Importing missing race events
-
-The event database records position changes, driver swaps, and incidents while the independent
-collector is connected. Missing events from before the collector started can be added after a
-session without controlling iRacing's replay:
-
-1. Open the completed session in iRacing Results.
-2. Download the JSON data for Results, Event Log, and Lap Chart.
-3. Open the leaderboard screen and click the `+` button beside the event filters.
-4. Select the downloaded JSON files together.
-
-The importer recognizes the three official result payloads. Lap Chart snapshots and live SDK
-snapshots pass through the same `EventReconstructor`, then merge into `sql/events.db` using
-stable content-derived IDs. Re-importing the same data is safe. Incidents are only read from
-iRacing incident totals or Event Log/Lap Chart incident data; position loss is never treated as
-an incident. Direct downloads from the iRacing Data API require an iRacing OAuth client ID;
-anonymous requests and legacy username/password authentication are intentionally not used.
+- `host`: Backend bind address; the default `127.0.0.1` keeps access local to this PC
+- `port`: Backend HTTP port
+- `refresh_rate`: Telemetry update interval in seconds
+- `ui_refresh_rate_ms`: Browser fallback-polling interval in milliseconds
+- `tire_wear_warning`: Threshold used by the tyre-wear alert, expressed from 0 to 1
+- `pit_loss_seconds`: Base time loss used by the pit-exit prediction
 - `fuel_fill_rate_lps`: Estimated refuelling speed in litres per second
-- `tire_change_seconds`: Estimated stationary time when tires are selected in iRacing's F5 black box
+- `tire_change_seconds`: Estimated tyre service time when tyres are selected in iRacing's F5 black box
+
+## Project structure
+
+```text
+race_engineer/          Python backend
+  events/               Event collection, reconstruction, and storage
+electron/               Desktop shell
+web/                    Dashboard HTML, CSS, JavaScript, and logos
+scripts/                Setup, launch, Git, and MSI build helpers
+requirements/           Runtime and build dependencies
+tests/                  Python and JavaScript tests
+docs/                   Documentation images
+sql/                    Local race-event database
+```
+
+VS Code hides generated folders such as `node_modules`, `venv`, `build`, and
+`out` from the Explorer. They remain available on disk and can be revealed by
+disabling Explorer exclusions.
+
+### Generated folders
+
+These folders can be deleted safely when their output is not needed:
+
+- `build/` and `dist-python/`: recreated by `npm run make:msi`
+- `out/`: packaged application and MSI output; delete only after copying any installer you need
+- `logs/`: diagnostic history only
+- `node_modules/`: recreated by `npm install`
+- `venv/`: recreated by `python scripts/setup_iracing_env.py`
+- `__pycache__/`: recreated automatically by Python
+
+`.build-tools/` contains the local WiX toolchain used for MSI builds. Delete it
+only if WiX Toolset 3.14 is installed elsewhere. Do not delete `sql/` unless you
+intentionally want to remove locally stored race events.
+
+## Development
+
+Set up and start the development app from PowerShell:
+
+```powershell
+python scripts/setup_iracing_env.py
+npm install
+npm start
+```
+
+Run the complete Python and JavaScript test suite with `npm test`.
 
 ## Future Enhancements
 
@@ -118,6 +149,6 @@ anonymous requests and legacy username/password authentication are intentionally
 ## Troubleshooting
 
 - Ensure iRacing is running before starting Race-Engineer.
-- If connection fails, check that iRacing is not in replay mode.
-- For issues with dependencies, try reinstalling with `python setup_iracing_env.py`.
+- If connection fails, check that iRacing has an active session and restart the app.
+- For issues with dependencies, try reinstalling with `python scripts/setup_iracing_env.py`.
 - If Electron does not open, make sure Node.js is installed and run `npm install`.

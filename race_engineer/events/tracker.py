@@ -4,8 +4,8 @@ import time
 from threading import Lock
 from typing import Any
 
-from event_reconstructor import EventReconstructor, stable_event_id
-from event_store import EventStore
+from race_engineer.events.reconstructor import EventReconstructor, stable_event_id
+from race_engineer.events.store import EventStore
 
 
 class RaceEventTracker:
@@ -220,14 +220,6 @@ class RaceEventTracker:
         # Spectator/broadcast mode reports replay playback even at the live
         # edge. A small buffer delay is live; a larger offset is historical.
         return session_time - replay_time > 2.0
-
-    @staticmethod
-    def _event_lap(entry: dict[str, Any], telemetry: dict[str, Any]) -> str:
-        laps_completed = RaceEventTracker._optional_int(entry.get("laps_completed"))
-        if laps_completed is not None and laps_completed >= 0:
-            return str(laps_completed + 1)
-        current_lap = RaceEventTracker._optional_int(telemetry.get("current_lap"))
-        return str(current_lap) if current_lap is not None else "--"
 
     @staticmethod
     def _optional_int(value: Any) -> int | None:

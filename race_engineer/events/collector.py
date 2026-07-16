@@ -7,10 +7,10 @@ import os
 import time
 from pathlib import Path
 
-from event_store import EventStore
-from race_event_tracker import RaceEventTracker
-from telemetry import TelemetryReader
-from runtime_paths import COLLECTOR_LOCK_PATH, DATABASE_PATH
+from race_engineer.events.store import EventStore
+from race_engineer.events.tracker import RaceEventTracker
+from race_engineer.paths import COLLECTOR_LOCK_PATH, DATABASE_PATH
+from race_engineer.telemetry import TelemetryReader
 
 
 LOCK_PATH = COLLECTOR_LOCK_PATH

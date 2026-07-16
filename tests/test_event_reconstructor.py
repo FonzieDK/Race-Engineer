@@ -1,6 +1,6 @@
 import unittest
 
-from event_reconstructor import EventReconstructor
+from race_engineer.events.reconstructor import EventReconstructor
 
 
 class EventReconstructorTests(unittest.TestCase):

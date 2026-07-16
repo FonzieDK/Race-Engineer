@@ -27,6 +27,7 @@ class TelemetryReader:
         self._event_replay_state = None
         self._heavy_snapshot = None
         self._heavy_snapshot_at = 0.0
+        self._heavy_snapshot_key = None
         self._pre_race_grid_key = None
         self._pre_race_grid = {}
         self._fallback_session_id = f"local-{uuid4().hex}"
@@ -594,11 +595,6 @@ class TelemetryReader:
                 return car_idx
         return None
 
-    def _get_driver_count(self):
-        driver_info = self.ir["DriverInfo"] or {}
-        drivers = driver_info.get("Drivers", []) if isinstance(driver_info, dict) else []
-        return len(drivers)
-
     def _get_current_session(self):
         session_info = self.ir["SessionInfo"] or {}
         if not isinstance(session_info, dict):
@@ -636,47 +632,6 @@ class TelemetryReader:
             except ValueError:
                 return None
         return None
-
-    def _get_laps_remaining(self, focused_laps_completed, focused_best_lap, focused_last_lap, session_time_remain):
-        raw_remaining = self._valid_lap_count(self._get_var("SessionLapsRemainEx"))
-        if raw_remaining is not None:
-            return raw_remaining, False
-
-        current_session = self._get_current_session()
-        session_laps = self._parse_session_laps(current_session.get("SessionLaps"))
-        completed_laps = self._valid_lap_count(focused_laps_completed)
-        if session_laps is not None and completed_laps is not None:
-            return max(0, session_laps - completed_laps), False
-
-        reference_lap = None
-        for value in (focused_best_lap, focused_last_lap):
-            if isinstance(value, (int, float)) and value > 0:
-                reference_lap = value
-                break
-
-        if (
-            isinstance(session_time_remain, (int, float))
-            and session_time_remain > 0
-            and reference_lap
-        ):
-            return max(0, round(session_time_remain / reference_lap)), True
-
-        return None, False
-
-    @staticmethod
-    def _get_current_lap(focused_laps_completed):
-        completed_laps = TelemetryReader._valid_lap_count(focused_laps_completed)
-        if completed_laps is None:
-            return None
-        return completed_laps + 1
-
-    @staticmethod
-    def _get_total_laps(focused_laps_completed, session_laps_remain):
-        completed_laps = TelemetryReader._valid_lap_count(focused_laps_completed)
-        remaining_laps = TelemetryReader._valid_lap_count(session_laps_remain)
-        if completed_laps is None or remaining_laps is None:
-            return None
-        return completed_laps + remaining_laps
 
     @staticmethod
     def _get_overall_leader_idx(car_positions):
@@ -1433,33 +1388,9 @@ class TelemetryReader:
             else:
                 track_internal_name = None
 
-            now = time.monotonic()
-            if self._heavy_snapshot is None or now - self._heavy_snapshot_at >= 0.1:
-                self._heavy_snapshot = {
-                    "standings": self._build_standings(
-                        drivers,
-                        lap_dist_pct,
-                        focus_gap_values,
-                        estimated_times,
-                        laps_completed,
-                        best_lap_times,
-                        last_lap_times,
-                        on_pit_road,
-                        session_time,
-                        focus_car_idx,
-                        track_surface,
-                        focus_tire_compound_values,
-                        focus_rpm_values,
-                        session_key,
-                        race_started,
-                    ),
-                }
-                self._heavy_snapshot_at = now
-
             # Car positions are inexpensive to build and need to follow the
             # selected telemetry refresh rate. Standings remain throttled
-            # above because their gap/status enrichment is substantially
-            # heavier.
+            # because their gap/status enrichment is substantially heavier.
             live_track_map = self._build_track_map(
                 drivers,
                 car_positions,
@@ -1468,17 +1399,46 @@ class TelemetryReader:
                 focus_car_idx,
                 on_pit_road,
             )
-            pit_exit_prediction = self._build_pit_exit_prediction(
-                self._heavy_snapshot["standings"],
-                live_track_map,
-                focus_car_idx,
-                self._estimate_next_pit_loss(
-                    is_player_car,
-                    self._get_var("PitSvFlags", 0),
-                    self._get_var("PitSvFuel", 0.0),
-                ),
-                driver_info.get("DriverCarEstLapTime"),
-            )
+            now = time.monotonic()
+            heavy_snapshot_key = (session_key, focus_car_idx, race_started)
+            if (
+                self._heavy_snapshot is None
+                or self._heavy_snapshot_key != heavy_snapshot_key
+                or now - self._heavy_snapshot_at >= 0.1
+            ):
+                standings = self._build_standings(
+                    drivers,
+                    lap_dist_pct,
+                    focus_gap_values,
+                    estimated_times,
+                    laps_completed,
+                    best_lap_times,
+                    last_lap_times,
+                    on_pit_road,
+                    session_time,
+                    focus_car_idx,
+                    track_surface,
+                    focus_tire_compound_values,
+                    focus_rpm_values,
+                    session_key,
+                    race_started,
+                )
+                self._heavy_snapshot = {
+                    "standings": standings,
+                    "pit_exit_prediction": self._build_pit_exit_prediction(
+                        standings,
+                        live_track_map,
+                        focus_car_idx,
+                        self._estimate_next_pit_loss(
+                            is_player_car,
+                            self._get_var("PitSvFlags", 0),
+                            self._get_var("PitSvFuel", 0.0),
+                        ),
+                        driver_info.get("DriverCarEstLapTime"),
+                    ),
+                }
+                self._heavy_snapshot_at = now
+                self._heavy_snapshot_key = heavy_snapshot_key
 
             data = {
                 "focus_car_idx": focus_car_idx,
@@ -1493,7 +1453,7 @@ class TelemetryReader:
                 "session_state": session_state,
                 "session_flags": session_flags,
                 "race_started": race_started,
-                "driver_count": self._get_driver_count(),
+                "driver_count": len(drivers),
                 "driver_name": driver.get("UserName") or driver.get("AbbrevName") or "Unknown driver",
                 "car_number": driver.get("CarNumber", "--"),
                 "car_name": driver.get("CarScreenName", "Unknown car"),
@@ -1522,7 +1482,7 @@ class TelemetryReader:
                 "fuel_capacity": fuel_capacity,
                 "fuel_density": fuel_density,
                 "rpm_limit": rpm_limit,
-                "fuel_use_per_hour": self._get_var("FuelUsePerHour") if is_player_car else None,
+                "fuel_use_per_hour": player_fuel_use_per_hour if is_player_car else None,
                 "weather": {
                     "air_temp": air_temp,
                     "track_temp": track_temp,
@@ -1573,8 +1533,7 @@ class TelemetryReader:
                 },
                 "standings": self._heavy_snapshot["standings"],
                 "track_map": live_track_map,
-                "pit_exit_prediction": pit_exit_prediction,
-                "track_name": track_name,
+                "pit_exit_prediction": self._heavy_snapshot["pit_exit_prediction"],
             }
 
             # These scalar SDK channels always describe the player's car,

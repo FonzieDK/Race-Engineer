@@ -1,6 +1,6 @@
 import unittest
 
-from telemetry import TelemetryReader
+from race_engineer.telemetry import TelemetryReader
 
 
 class TelemetryReaderFocusTests(unittest.TestCase):

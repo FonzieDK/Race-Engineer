@@ -1,6 +1,6 @@
 import unittest
 
-from iracing_results import IracingResultsImporter
+from race_engineer.events.results import IracingResultsImporter
 
 
 class IracingResultsImporterTests(unittest.TestCase):

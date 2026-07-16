@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from event_reconstructor import EventReconstructor, stable_event_id
+from race_engineer.events.reconstructor import EventReconstructor, stable_event_id
 
 
 class IracingResultsImporter:

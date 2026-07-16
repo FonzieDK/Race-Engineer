@@ -2,7 +2,7 @@ import unittest
 
 import irsdk
 
-from telemetry import TelemetryReader
+from race_engineer.telemetry import TelemetryReader
 
 
 class TelemetryReaderRaceStateTests(unittest.TestCase):

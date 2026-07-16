@@ -345,19 +345,6 @@ function toggleEventSaved(event, button) {
   }
 }
 
-function hasUsableTelemetry(telemetry) {
-  return Boolean(
-    telemetry && (
-      telemetry.driver_name ||
-      telemetry.car_name ||
-      telemetry.track_name ||
-      telemetry.position != null ||
-      telemetry.focus_gear != null ||
-      telemetry.focus_rpm != null
-    )
-  );
-}
-
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     const nextScreen = tab.dataset.screen;
@@ -547,11 +534,14 @@ function setStatusBar(element, value, minimum, maximum, dimension = "width") {
   const percent = typeof value === "number" && Number.isFinite(value) && maximum > minimum
     ? Math.max(0, Math.min(100, ((value - minimum) / (maximum - minimum)) * 100))
     : 0;
-  element.style[dimension] = `${percent}%`;
+  const nextValue = `${percent}%`;
+  if (element.style[dimension] !== nextValue) {
+    element.style[dimension] = nextValue;
+  }
 }
 
 function setVisualState(element, state) {
-  if (element) element.dataset.state = state;
+  if (element && element.dataset.state !== state) element.dataset.state = state;
 }
 
 function setSystemState(name, state, barElement) {
@@ -589,16 +579,6 @@ function formatTirePressure(value) {
   return `${(value * 0.1450377).toFixed(2)} psi`;
 }
 
-function getEventLap(car, raceLap) {
-  const currentLap = Number(raceLap);
-  if (raceLap != null && Number.isFinite(currentLap)) return currentLap;
-
-  const completedLaps = Number(car?.laps_completed);
-  return car?.laps_completed != null && Number.isFinite(completedLaps)
-    ? completedLaps + 1
-    : "--";
-}
-
 function estimateEmptyLap(telemetry) {
   const fuelLevel = Number(telemetry.player_fuel_level ?? telemetry.fuel_level);
   const fuelUsePerHour = Number(telemetry.player_fuel_use_per_hour ?? telemetry.fuel_use_per_hour);
@@ -616,40 +596,6 @@ function estimateEmptyLap(telemetry) {
   const litersPerLap = (fuelUsePerHour * lapSeconds) / (3600 * fuelDensity);
   if (!(litersPerLap > 0)) return "lap --";
   return `lap ${Math.floor(currentLap + fuelLevel / litersPerLap)}`;
-}
-
-function formatWeatherSummary(weather) {
-  if (!weather || typeof weather !== "object") {
-    return "--";
-  }
-
-  const parts = [];
-  if (weather.weather_type) {
-    parts.push(weather.weather_type);
-  }
-  if (typeof weather.air_temp === "number") {
-    parts.push(`Air ${Math.round(weather.air_temp)}°C`);
-  }
-  if (typeof weather.track_temp === "number") {
-    parts.push(`Track ${Math.round(weather.track_temp)}°C`);
-  }
-  if (typeof weather.humidity === "number") {
-    parts.push(`${Math.round(weather.humidity)}% RH`);
-  }
-  if (typeof weather.wind_speed === "number") {
-    parts.push(`${formatNumber(weather.wind_speed, 1)} m/s`);
-  }
-  if (typeof weather.wind_direction === "number") {
-    parts.push(`Dir ${Math.round(weather.wind_direction)}°`);
-  }
-  if (weather.rain_state) {
-    parts.push(weather.rain_state);
-  }
-
-  if (parts.length === 0) {
-    return "--";
-  }
-  return parts.join(" · ");
 }
 
 function formatWindDirection(value) {

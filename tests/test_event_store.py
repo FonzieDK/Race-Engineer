@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from event_store import EventStore
+from race_engineer.events.store import EventStore
 
 
 class EventStoreTests(unittest.TestCase):

@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from event_store import EventStore
-from race_event_tracker import RaceEventTracker
-from replay_event_scanner import ReplayEventScanner
+from race_engineer.events.replay_scanner import ReplayEventScanner
+from race_engineer.events.store import EventStore
+from race_engineer.events.tracker import RaceEventTracker
 
 
 class FakeReplayReader:

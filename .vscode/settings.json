@@ -1,0 +1,21 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    ".build-tools": true,
+    "build": true,
+    "dist-python": true,
+    "logs": true,
+    "node_modules": true,
+    "out": true,
+    "venv": true
+  },
+  "search.exclude": {
+    ".build-tools": true,
+    "build": true,
+    "dist-python": true,
+    "logs": true,
+    "node_modules": true,
+    "out": true,
+    "venv": true
+  }
+}

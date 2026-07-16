@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+$ProjectRoot = Split-Path $PSScriptRoot -Parent
+Set-Location $ProjectRoot
 
 function Find-CommandPath([string] $Name) {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
@@ -7,12 +8,12 @@ function Find-CommandPath([string] $Name) {
     return $null
 }
 
-$python = Join-Path $PSScriptRoot "venv\Scripts\python.exe"
+$python = Join-Path $ProjectRoot "venv\Scripts\python.exe"
 if (-not (Test-Path $python)) {
     $python = Find-CommandPath "python.exe"
 }
 if (-not $python) {
-    throw "Python blev ikke fundet. Installer Python, eller kør python setup_iracing_env.py."
+    throw "Python blev ikke fundet. Installer Python, eller kør python scripts/setup_iracing_env.py."
 }
 
 $npm = Find-CommandPath "npm.cmd"
@@ -26,7 +27,7 @@ if (-not $npm) {
 $nodeDirectory = Split-Path $npm
 $env:PATH = "$nodeDirectory;$env:PATH"
 
-$localWix = Join-Path $PSScriptRoot ".build-tools\wix"
+$localWix = Join-Path $ProjectRoot ".build-tools\wix"
 $installedWix = "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin"
 if ((Test-Path (Join-Path $localWix "candle.exe")) -and (Test-Path (Join-Path $localWix "light.exe"))) {
     $env:PATH = "$localWix;$env:PATH"
@@ -37,7 +38,7 @@ if ((Test-Path (Join-Path $localWix "candle.exe")) -and (Test-Path (Join-Path $l
 }
 
 Write-Host "[1/4] Installerer Python build-afhaengigheder..."
-& $python -m pip install --disable-pip-version-check -r requirements-build.txt
+& $python -m pip install --disable-pip-version-check -r requirements/build.txt
 if ($LASTEXITCODE -ne 0) { throw "Installation af Python build-afhaengigheder fejlede." }
 
 Write-Host "[2/4] Pakker Python-runtime..."
@@ -49,7 +50,7 @@ Write-Host "[2/4] Pakker Python-runtime..."
     --distpath dist-python `
     --workpath build\pyinstaller `
     --specpath build\pyinstaller `
-    race_engineer_runtime.py
+    race_engineer/runtime.py
 if ($LASTEXITCODE -ne 0) { throw "Pakning af Python-runtime fejlede." }
 
 Write-Host "[3/4] Installerer Node build-afhaengigheder..."
@@ -60,7 +61,6 @@ Write-Host "[4/4] Bygger Race-Engineer MSI..."
 & $npm run make
 if ($LASTEXITCODE -ne 0) { throw "MSI-build fejlede." }
 
-$msi = Get-ChildItem (Join-Path $PSScriptRoot "out\make") -Recurse -Filter "*.msi" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$msi = Get-ChildItem (Join-Path $ProjectRoot "out\make") -Recurse -Filter "*.msi" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $msi) { throw "Build blev faerdig, men ingen MSI-fil blev fundet." }
 Write-Host "MSI klar: $($msi.FullName)"
-
