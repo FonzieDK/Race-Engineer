@@ -82,19 +82,6 @@ data is stored in `sql/events.db`; an installed app stores it in
 - Switchable large-map view between the track map, pit-exit prediction, and dynamic follow map
 - Live weather and track conditions, including wind, temperature, humidity, wetness, skies, and declared-wet status
 
-## Configuration
-
-Edit `config.json` to adjust settings:
-
-- `host`: Backend bind address; the default `127.0.0.1` keeps access local to this PC
-- `port`: Backend HTTP port
-- `refresh_rate`: Telemetry update interval in seconds
-- `ui_refresh_rate_ms`: Browser fallback-polling interval in milliseconds
-- `tire_wear_warning`: Threshold used by the tyre-wear alert, expressed from 0 to 1
-- `pit_loss_seconds`: Base time loss used by the pit-exit prediction
-- `fuel_fill_rate_lps`: Estimated refuelling speed in litres per second
-- `tire_change_seconds`: Estimated tyre service time when tyres are selected in iRacing's F5 black box
-
 ## Future Enhancements
 
 - Advanced pit strategy calculations
