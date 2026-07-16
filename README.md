@@ -41,6 +41,8 @@ collection without opening the Race-Engineer window.
 
 ## OVERVIEW
 
+![Race-Engineer Overview](docs/images/overview.png)
+
 ### Features
 
 - Live session information, including time remaining, in-game time, lap count, and track name
@@ -53,6 +55,8 @@ collection without opening the Race-Engineer window.
 
 ## LEADERBOARDS
 
+![Race-Engineer Leaderboards](docs/images/leaderboards.png)
+
 ### Features
 
 - Focused-car summary with current lap, position, last lap, and best lap
@@ -64,6 +68,8 @@ collection without opening the Race-Engineer window.
 - Automatic replay scanning and import of official iRacing Results, Event Log, and Lap Chart JSON files
 
 ## TRACK MAP
+
+![Race-Engineer Track Map](docs/images/track-map.png)
 
 ### Features
 
