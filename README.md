@@ -4,7 +4,7 @@ Race-Engineer is an Electron desktop app for real-time iRacing telemetry with a 
 
 ## Download
 
-[Download **Race-Engineer.exe**](https://github.com/FonzieDK/Race-Engineer/releases/latest/download/Race-Engineer.exe)
+[Download **Race-Engineer.msi**](https://github.com/FonzieDK/Race-Engineer/releases/latest/download/Race-Engineer.msi)
 
 ## Requirements
 
