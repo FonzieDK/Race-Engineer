@@ -26,11 +26,11 @@ from pit_strategy import PitStrategy
 from race_event_tracker import RaceEventTracker
 from replay_event_scanner import ReplayEventScanner
 from telemetry import TelemetryReader
+from runtime_paths import CONFIG_PATH, DATABASE_PATH, RESOURCE_DIR, TRACKS_PATH, WEB_DIR
 
 
-BASE_DIR = Path(__file__).resolve().parent
-WEB_DIR = BASE_DIR / "web"
-EVENT_STORE = EventStore(BASE_DIR / "sql" / "events.db")
+BASE_DIR = RESOURCE_DIR
+EVENT_STORE = EventStore(DATABASE_PATH)
 IRACING_RESULTS_IMPORTER = IracingResultsImporter()
 RACE_EVENT_TRACKER = RaceEventTracker(EVENT_STORE)
 REPLAY_EVENT_SCANNER = ReplayEventScanner(
@@ -209,7 +209,7 @@ config_lock = Lock()
 
 
 def load_config() -> dict[str, Any]:
-    with open(BASE_DIR / "config.json", "r", encoding="utf-8") as config_file:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as config_file:
         return json.load(config_file)
 
 
@@ -230,7 +230,7 @@ def set_refresh_rate(hz: int) -> None:
     with config_lock:
         runtime_config["refresh_rate"] = interval_seconds
         runtime_config["ui_refresh_rate_ms"] = interval_ms
-        config_path = BASE_DIR / "config.json"
+        config_path = CONFIG_PATH
         temporary_path = config_path.with_suffix(".json.tmp")
         temporary_path.write_text(
             json.dumps(runtime_config, indent=4) + "\n",
@@ -291,7 +291,7 @@ def publish_snapshot() -> None:
 
 def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
     global telemetry_reader
-    strategy = PitStrategy(str(BASE_DIR / "config.json"))
+    strategy = PitStrategy(str(CONFIG_PATH))
 
     while not stop_event.is_set():
         telemetry = TelemetryReader(
@@ -669,7 +669,7 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
     def _send_track_svg(self) -> None:
         try:
             # Read tracks database
-            with open(BASE_DIR / "tracks.json", "r", encoding="utf-8") as f:
+            with open(TRACKS_PATH, "r", encoding="utf-8") as f:
                 tracks_db = json.load(f)
         except Exception:
             tracks_db = {}

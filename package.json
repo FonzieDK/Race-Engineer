@@ -1,13 +1,20 @@
 {
   "name": "race-engineer",
-  "version": "1.0.0",
+  "productName": "Race-Engineer",
+  "version": "1.1.0",
   "description": "Race-Engineer desktop app for iRacing telemetry",
+  "author": "InfiNxt",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "electron": "electron ."
+    "electron": "electron .",
+    "package": "electron-forge package --platform win32 --arch x64",
+    "make": "electron-forge make --platform win32 --arch x64",
+    "make:msi": "powershell -NoProfile -ExecutionPolicy Bypass -File build-msi.ps1"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-wix": "^7.11.2",
     "electron": "^37.0.0"
   }
 }

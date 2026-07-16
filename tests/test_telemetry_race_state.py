@@ -43,6 +43,48 @@ class TelemetryReaderRaceStateTests(unittest.TestCase):
     def test_non_race_session_never_enables_race_events(self):
         self.assertFalse(TelemetryReader._race_has_started("Practice", irsdk.SessionState.racing, irsdk.Flags.green))
 
+    def test_timed_race_lap_count_uses_leader_progress(self):
+        reader = TelemetryReader()
+        current, total, remaining, estimated = reader._get_race_lap_count(
+            {"SessionLaps": "unlimited"},
+            leader_laps_completed=30,
+            leader_lap_progress=0.5,
+            leader_best_lap=120.0,
+            leader_last_lap=121.0,
+            session_time_remain=600.0,
+            session_flags=irsdk.Flags.green,
+        )
+        self.assertEqual(current, 31)
+        self.assertEqual(total, 37)
+        self.assertEqual(remaining, 7)
+        self.assertTrue(estimated)
+
+    def test_white_flag_locks_total_to_leaders_current_lap(self):
+        reader = TelemetryReader()
+        current, total, remaining, estimated = reader._get_race_lap_count(
+            {"SessionLaps": "unlimited"},
+            leader_laps_completed=35,
+            leader_lap_progress=0.02,
+            leader_best_lap=120.0,
+            leader_last_lap=121.0,
+            session_time_remain=0.0,
+            session_flags=irsdk.Flags.white,
+        )
+        self.assertEqual((current, total, remaining, estimated), (36, 36, 1, False))
+
+    def test_fixed_lap_race_keeps_scheduled_total(self):
+        reader = TelemetryReader()
+        current, total, remaining, estimated = reader._get_race_lap_count(
+            {"SessionLaps": "60"},
+            leader_laps_completed=30,
+            leader_lap_progress=0.5,
+            leader_best_lap=120.0,
+            leader_last_lap=121.0,
+            session_time_remain=600.0,
+            session_flags=irsdk.Flags.green,
+        )
+        self.assertEqual((current, total, remaining, estimated), (31, 60, 30, False))
+
 
 if __name__ == "__main__":
     unittest.main()

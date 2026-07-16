@@ -175,14 +175,33 @@ class EventStore:
                 previous_time = self._optional_float(
                     row["last_session_time"] if row is not None else None
                 )
+                # SessionTime is monotonic during a live iRacing session.  A
+                # substantial backwards jump therefore identifies a new race,
+                # even when the collector attaches more than 30 seconds after
+                # that race began.  Requiring the new value itself to be below
+                # 30 seconds caused late connections to reuse the previous
+                # race's fallback id and mix both event feeds.
                 time_reset = (
                     normalized_time is not None
                     and previous_time is not None
-                    and normalized_time < 30
                     and normalized_time + 30 < previous_time
                 )
                 if not is_replay and time_reset:
                     session_id = f"local-{uuid4().hex}"
+
+                # Seeking a replay also moves SessionTime backwards, but must
+                # neither start a new race nor erase the live high-water mark
+                # used to recognise the next real race.
+                stored_session_time = (
+                    previous_time
+                    if is_replay and previous_time is not None
+                    else normalized_time
+                )
+                stored_race_started = (
+                    int(row["race_started"])
+                    if is_replay and row is not None
+                    else int(race_started)
+                )
 
                 connection.execute(
                     """
@@ -197,7 +216,13 @@ class EventStore:
                         race_started = excluded.race_started,
                         updated_at = excluded.updated_at
                     """,
-                    (session_id, normalized_num, normalized_time, int(race_started), now),
+                    (
+                        session_id,
+                        normalized_num,
+                        stored_session_time,
+                        stored_race_started,
+                        now,
+                    ),
                 )
                 connection.commit()
         return session_id

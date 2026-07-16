@@ -8,6 +8,7 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         reader = TelemetryReader.__new__(TelemetryReader)
         reader._pit_history = {}
         reader._car_presence_history = {}
+        reader._cars_observed_present = set()
         reader._get_current_session = lambda: {"ResultsPositions": results}
         return reader
 
@@ -303,9 +304,10 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         self.assertFalse(track_map["cars"][0]["is_on_pit_road"])
         self.assertTrue(track_map["cars"][1]["is_on_pit_road"])
 
-    def test_vacant_car_changes_from_pit_road_to_garage_after_one_minute(self):
+    def test_car_vacated_after_being_seen_stays_on_pit_road_for_one_minute(self):
         reader = self.make_reader([])
 
+        reader._get_timed_car_status(7, True, 1, 90.0, 3000, session_key="race:0")
         first_seen = reader._get_timed_car_status(7, True, 1, 100.0, 300, session_key="race:0")
         after_one_minute = reader._get_timed_car_status(7, True, 1, 160.0, 300, session_key="race:0")
         over_one_minute = reader._get_timed_car_status(7, True, 1, 160.1, 300, session_key="race:0")
@@ -313,6 +315,24 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         self.assertEqual(first_seen, "pit")
         self.assertEqual(after_one_minute, "pit")
         self.assertEqual(over_one_minute, "garage")
+
+    def test_car_already_vacant_when_reader_starts_is_immediately_in_garage(self):
+        reader = self.make_reader([])
+
+        status = reader._get_timed_car_status(
+            7, True, 1, 100.0, 300, session_key="race:0"
+        )
+
+        self.assertEqual(status, "garage")
+
+    def test_car_not_in_world_is_immediately_in_garage(self):
+        reader = self.make_reader([])
+
+        status = reader._get_timed_car_status(
+            7, False, -1, 100.0, 3000, session_key="race:0"
+        )
+
+        self.assertEqual(status, "garage")
 
     def test_driver_return_resets_the_garage_timer(self):
         reader = self.make_reader([])

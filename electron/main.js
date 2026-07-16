@@ -15,6 +15,46 @@ function getProjectRoot() {
   return path.resolve(__dirname, "..");
 }
 
+function getResourceRoot() {
+  return app.isPackaged ? process.resourcesPath : getProjectRoot();
+}
+
+function getDataRoot() {
+  return app.isPackaged ? app.getPath("userData") : getProjectRoot();
+}
+
+function ensureUserConfig() {
+  const configPath = path.join(getDataRoot(), "config.json");
+  if (!fs.existsSync(configPath)) {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.copyFileSync(path.join(getResourceRoot(), "config.json"), configPath);
+  }
+  return configPath;
+}
+
+function getRuntimeEnvironment() {
+  return {
+    ...process.env,
+    PYTHONUNBUFFERED: "1",
+    RACE_ENGINEER_RESOURCE_DIR: getResourceRoot(),
+    RACE_ENGINEER_DATA_DIR: getDataRoot(),
+  };
+}
+
+function getPythonRuntime(mode) {
+  if (app.isPackaged) {
+    return {
+      command: path.join(getResourceRoot(), "RaceEngineerRuntime", "RaceEngineerRuntime.exe"),
+      args: mode === "collector" ? ["--collector"] : [],
+    };
+  }
+
+  return {
+    command: mode === "collector" ? getWindowlessPythonPath() : getPythonPath(),
+    args: [path.join(getProjectRoot(), mode === "collector" ? "event_collector.py" : "main.py")],
+  };
+}
+
 function quoteWindowsCommandArg(value) {
   return `"${String(value).replace(/"/g, '\\"')}"`;
 }
@@ -32,7 +72,7 @@ function registerCollectorAtLogin() {
       "ADD",
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
       "/v",
-      "electron.app.Electron",
+      "RaceEngineerCollector",
       "/t",
       "REG_SZ",
       "/d",
@@ -50,7 +90,7 @@ function registerCollectorAtLogin() {
 }
 
 function getLogPath(name) {
-  const logDir = path.join(getProjectRoot(), "logs");
+  const logDir = path.join(getDataRoot(), "logs");
   fs.mkdirSync(logDir, { recursive: true });
   return path.join(logDir, name);
 }
@@ -61,7 +101,7 @@ function appendLog(name, message) {
 }
 
 function getConfig() {
-  const configPath = path.join(getProjectRoot(), "config.json");
+  const configPath = ensureUserConfig();
   const raw = fs.readFileSync(configPath, "utf8");
   return JSON.parse(raw);
 }
@@ -153,18 +193,14 @@ function startBackend() {
     return;
   }
 
-  const pythonPath = getPythonPath();
-  const mainScriptPath = path.join(getProjectRoot(), "main.py");
-  appendLog("race-engineer-electron.log", `Starting backend: ${pythonPath} ${mainScriptPath}`);
+  const runtime = getPythonRuntime("backend");
+  appendLog("race-engineer-electron.log", `Starting backend: ${runtime.command} ${runtime.args.join(" ")}`);
 
-  backendProcess = spawn(pythonPath, [mainScriptPath], {
-    cwd: getProjectRoot(),
+  backendProcess = spawn(runtime.command, runtime.args, {
+    cwd: getDataRoot(),
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
-    env: {
-      ...process.env,
-      PYTHONUNBUFFERED: "1",
-    },
+    env: getRuntimeEnvironment(),
   });
 
   let stderr = "";
@@ -209,15 +245,14 @@ function startEventCollector() {
   if (collectorProcess) return;
   // pythonw has no console subsystem, so the background collector never
   // opens Windows Terminal or a Command Prompt window.
-  const pythonPath = getWindowlessPythonPath();
-  const collectorPath = path.join(getProjectRoot(), "event_collector.py");
-  if (!fs.existsSync(collectorPath)) return;
-  collectorProcess = spawn(pythonPath, [collectorPath], {
-    cwd: getProjectRoot(),
+  const runtime = getPythonRuntime("collector");
+  if (!fs.existsSync(runtime.command)) return;
+  collectorProcess = spawn(runtime.command, runtime.args, {
+    cwd: getDataRoot(),
     detached: true,
     stdio: "ignore",
     windowsHide: true,
-    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    env: getRuntimeEnvironment(),
   });
   collectorProcess.on("error", (error) => {
     appendLog("race-engineer-electron.log", `Failed to start event collector: ${error.message}`);
@@ -242,6 +277,14 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  const sendFullscreenState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("race-engineer:fullscreen-changed", mainWindow.isFullScreen());
+    }
+  };
+  mainWindow.on("enter-full-screen", sendFullscreenState);
+  mainWindow.on("leave-full-screen", sendFullscreenState);
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -283,7 +326,19 @@ ipcMain.handle("race-engineer:restart", () => {
   return true;
 });
 
+ipcMain.handle("race-engineer:toggle-fullscreen", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const shouldEnterFullscreen = !mainWindow.isFullScreen();
+  mainWindow.setFullScreen(shouldEnterFullscreen);
+  return shouldEnterFullscreen;
+});
+
 app.whenReady().then(() => {
+  app.setAppUserModelId("com.infinxt.raceengineer");
+  ensureUserConfig();
   startEventCollector();
   if (process.platform === "win32") {
     registerCollectorAtLogin();

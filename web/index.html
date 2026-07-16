@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Race-Engineer</title>
-  <link rel="stylesheet" href="/app.css?v=20260715-matching-dynamic-map-card">
+  <link rel="stylesheet" href="/app.css?v=20260716-left-tabs-spacing">
 </head>
 <body>
   <section id="awaiting-data" class="awaiting-data" aria-live="polite">
@@ -18,14 +18,14 @@
   <main class="race-engineer-shell">
     <header class="top-frame">
       <div class="brand-block">
-        <p class="eyebrow">Race-Engineer</p>
+        <p class="eyebrow brand-title">Race-Engineer</p>
+        <p class="brand-byline">By Fonzie</p>
       </div>
 
       <nav class="screen-tabs" aria-label="Screen tabs">
         <button class="tab is-active" type="button" data-screen="overview">Overview</button>
         <button class="tab" type="button" data-screen="leaderboard">Leaderboard</button>
         <button class="tab" type="button" data-screen="map">Track Map</button>
-        <button class="tab" type="button" data-screen="test">Test</button>
       </nav>
 
       <div class="meta-strip">
@@ -43,20 +43,12 @@
             <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="60">60 Hz</button>
           </div>
         </div>
-        <div id="refresh-rate-control" class="refresh-rate-control">
-          <button id="refresh-rate-toggle" class="refresh-rate-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <span class="refresh-rate-label">Refresh</span>
-            <span class="refresh-rate-current">
-              <span id="refresh-rate-value" class="refresh-rate-value">30 Hz</span>
-              <svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg>
-            </span>
-          </button>
-          <div id="refresh-rate-menu" class="refresh-rate-menu" role="listbox" aria-label="Dashboard refresh rate" aria-hidden="true">
-            <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="10">10 Hz</button>
-            <button class="refresh-rate-option is-selected" type="button" role="option" aria-selected="true" data-hz="30">30 Hz</button>
-            <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="60">60 Hz</button>
-          </div>
-        </div>
+        <button id="fullscreen-toggle" class="fullscreen-toggle" type="button" title="Open borderless fullscreen" aria-label="Open borderless fullscreen" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"></path>
+          </svg>
+          <span>Fullscreen</span>
+        </button>
         <button id="restart-race-engineer" class="restart-race-engineer" type="button" title="Restart Race-Engineer" aria-label="Restart Race-Engineer">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"></path>
@@ -71,52 +63,15 @@
     <section class="screen is-visible" data-screen-panel="overview">
       <section class="main-grid">
         <aside class="sidebar">
-          <article class="module emphasis">
-            <div class="module-head">
-              <p class="section-label">Fuel</p>
-              <span class="mini-label">Strategy</span>
-            </div>
-            <div class="big-metric-wrap">
-              <strong id="fuel-level" class="big-metric">--</strong>
-              <span class="unit">L</span>
-            </div>
-            <div class="info-rows">
-              <div class="info-row"><span>Fuel burn</span><strong id="fuel-use">--</strong></div>
-              <div class="info-row"><span>Gap / delta</span><strong id="focus-gap">--</strong></div>
-              <div class="info-row"><span>Pit road</span><strong id="pit-road-status">--</strong></div>
-            </div>
-          </article>
-
-          <article class="module">
+          <article class="module session-module">
             <div class="module-head">
               <p class="section-label">Session</p>
-              <span class="mini-label">Live</span>
             </div>
             <div class="info-rows">
               <div class="info-row"><span>Time remain</span><strong id="session-time">--</strong></div>
+              <div class="info-row"><span>Ingame time</span><strong id="ingame-time">--</strong></div>
               <div class="info-row"><span>Laps</span><strong id="laps-remaining">--</strong></div>
               <div class="info-row"><span>Track</span><strong id="session-track-name">--</strong></div>
-            </div>
-          </article>
-
-          <article class="module">
-            <div class="module-head">
-              <p class="section-label">Driver Inputs</p>
-              <span class="mini-label">Player car</span>
-            </div>
-            <div class="input-stack">
-              <div class="input-line">
-                <div class="input-head"><span>Throttle</span><strong id="input-throttle">--</strong></div>
-                <div class="bar"><span id="bar-throttle"></span></div>
-              </div>
-              <div class="input-line">
-                <div class="input-head"><span>Brake</span><strong id="input-brake">--</strong></div>
-                <div class="bar warn"><span id="bar-brake"></span></div>
-              </div>
-              <div class="input-line">
-                <div class="input-head"><span>Clutch</span><strong id="input-clutch">--</strong></div>
-                <div class="bar soft"><span id="bar-clutch"></span></div>
-              </div>
             </div>
           </article>
 
@@ -177,63 +132,126 @@
             </div>
           </article>
 
-          <section class="summary-grid">
-            <article class="module compact">
-              <div class="module-head">
-                <p class="section-label">Last Lap</p>
-              </div>
-              <strong id="lap-time" class="summary-number">--</strong>
-            </article>
-            <article class="module compact">
-              <div class="module-head">
-                <p class="section-label">Best Lap</p>
-              </div>
-              <strong id="best-lap" class="summary-number">--</strong>
-            </article>
-            <article class="module compact">
-              <div class="module-head">
-                <p class="section-label">Compound</p>
-              </div>
-              <strong id="tire-compound" class="summary-number">--</strong>
-            </article>
-            <article class="module compact">
-              <div class="module-head">
-                <p class="section-label">Fast Repairs</p>
-              </div>
-              <strong id="fast-repairs" class="summary-number">--</strong>
-            </article>
-            <article class="module compact">
-              <div class="module-head">
-                <p class="section-label">Steering</p>
-              </div>
-              <strong id="steering-angle" class="summary-number">--</strong>
-            </article>
-          </section>
-
           <section class="charts-grid">
-            <article class="module chart-module">
+            <article class="module car-status-module" aria-label="Tyre, brake and power-unit status">
               <div class="module-head">
-                <p class="section-label">Power Trace</p>
-                <span class="mini-label">Speed / RPM</span>
+                <p class="section-label">Car Status</p>
               </div>
-              <div class="trace-placeholder" aria-hidden="true"></div>
+              <div class="car-status-graphic">
+                <div class="status-axle status-front-axle">
+                  <div class="wheel-data wheel-data-left">
+                    <b>FL</b>
+                    <span>Pressure</span>
+                    <strong id="status-tire-lf-pressure">--</strong>
+                  </div>
+                  <div class="tyre-stack">
+                    <div class="status-tyre" data-tire="lf" data-state="unavailable">
+                      <span>Tyre temp</span><small>&deg;C</small>
+                      <strong id="status-tire-lf-temp">--</strong>
+                    </div>
+                    <div class="corner-wear">
+                      <div class="tyre-wear-rail"><i id="status-tire-lf-wear-bar"></i></div>
+                      <em id="status-tire-lf-wear">--</em>
+                    </div>
+                  </div>
+                  <div class="brake-status">
+                    <span>Brake temp (&deg;C)</span>
+                    <div class="brake-values">
+                      <strong id="status-brake-lf-temp">--</strong>
+                      <strong id="status-brake-rf-temp">--</strong>
+                    </div>
+                    <small>Tyre wear (%)</small>
+                  </div>
+                  <div class="tyre-stack">
+                    <div class="status-tyre" data-tire="rf" data-state="unavailable">
+                      <span>Tyre temp</span><small>&deg;C</small>
+                      <strong id="status-tire-rf-temp">--</strong>
+                    </div>
+                    <div class="corner-wear">
+                      <div class="tyre-wear-rail"><i id="status-tire-rf-wear-bar"></i></div>
+                      <em id="status-tire-rf-wear">--</em>
+                    </div>
+                  </div>
+                  <div class="wheel-data wheel-data-right">
+                    <b>FR</b>
+                    <span>Pressure</span>
+                    <strong id="status-tire-rf-pressure">--</strong>
+                  </div>
+                </div>
+
+                <div class="car-systems">
+                  <div id="status-battery-panel" class="battery-status" hidden>
+                    <span>Battery</span>
+                    <div class="battery-gauge"><i id="status-battery-bar"></i></div>
+                    <strong id="status-battery">--</strong>
+                  </div>
+                  <div class="system-bars">
+                    <div class="system-line">
+                      <div class="system-label"><i data-status-for="engine"></i><span>Engine temp (&deg;C)</span><i data-status-for="engine"></i></div>
+                      <div class="system-rail engine-rail"><i id="status-engine-temp-bar"></i></div>
+                      <div class="system-scale"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span><span>120</span><span>140</span></div>
+                      <strong id="status-engine-temp">--</strong>
+                    </div>
+                    <div class="system-line">
+                      <div class="system-label"><i data-status-for="rpm"></i><span>RPM (x1000)</span><i data-status-for="rpm"></i></div>
+                      <div class="system-rail rpm-rail"><i id="status-rpm-bar"></i></div>
+                      <div class="system-scale"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span><span>12</span></div>
+                      <strong id="status-rpm-value">--</strong>
+                    </div>
+                    <div class="system-line">
+                      <div class="system-label"><i data-status-for="fuel"></i><span>Fuel</span><i data-status-for="fuel"></i></div>
+                      <div class="system-rail fuel-rail"><i id="status-fuel-bar"></i></div>
+                      <div class="system-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+                      <strong id="status-fuel-value">--</strong>
+                    </div>
+                    <div class="empty-lap">Empty <strong id="status-empty-lap">lap --</strong></div>
+                  </div>
+                </div>
+
+                <div class="status-axle status-rear-axle">
+                  <div class="wheel-data wheel-data-left">
+                    <b>RL</b>
+                    <span>Pressure</span>
+                    <strong id="status-tire-lr-pressure">--</strong>
+                  </div>
+                  <div class="tyre-stack">
+                    <div class="status-tyre" data-tire="lr" data-state="unavailable">
+                      <span>Tyre temp</span><small>&deg;C</small>
+                      <strong id="status-tire-lr-temp">--</strong>
+                    </div>
+                    <div class="corner-wear">
+                      <div class="tyre-wear-rail"><i id="status-tire-lr-wear-bar"></i></div>
+                      <em id="status-tire-lr-wear">--</em>
+                    </div>
+                  </div>
+                  <div class="brake-status">
+                    <span>Brake temp (&deg;C)</span>
+                    <div class="brake-values">
+                      <strong id="status-brake-lr-temp">--</strong>
+                      <strong id="status-brake-rr-temp">--</strong>
+                    </div>
+                    <small>Tyre wear (%)</small>
+                  </div>
+                  <div class="tyre-stack">
+                    <div class="status-tyre" data-tire="rr" data-state="unavailable">
+                      <span>Tyre temp</span><small>&deg;C</small>
+                      <strong id="status-tire-rr-temp">--</strong>
+                    </div>
+                    <div class="corner-wear">
+                      <div class="tyre-wear-rail"><i id="status-tire-rr-wear-bar"></i></div>
+                      <em id="status-tire-rr-wear">--</em>
+                    </div>
+                  </div>
+                  <div class="wheel-data wheel-data-right">
+                    <b>RR</b>
+                    <span>Pressure</span>
+                    <strong id="status-tire-rr-pressure">--</strong>
+                  </div>
+                </div>
+              </div>
             </article>
           </section>
 
-          <section class="lower-grid">
-            <article class="module tyres-module">
-              <div class="module-head">
-                <p class="section-label">Tyre Overview</p>
-                <span class="mini-label">Player car</span>
-              </div>
-              <div class="tyre-grid">
-                <div class="tyre-box"><span>LF</span><strong id="tire-lf">--</strong></div>
-                <div class="tyre-box"><span>RF</span><strong id="tire-rf">--</strong></div>
-                <div class="tyre-box"><span>LR</span><strong id="tire-lr">--</strong></div>
-                <div class="tyre-box"><span>RR</span><strong id="tire-rr">--</strong></div>
-              </div>
-            </article>
-          </section>
         </section>
       </section>
     </section>
@@ -427,18 +445,10 @@
       </article>
     </section>
 
-    <section class="screen" data-screen-panel="test">
-      <article class="module full-screen-module">
-        <div class="module-head">
-          <p class="section-label">Test</p>
-        </div>
-      </article>
-    </section>
-
   </main>
 
   <script src="/car-brand-logos.js?v=20260714"></script>
   <script src="/car-brand-logos-extra.js?v=20260714"></script>
-  <script src="/app.js?v=20260715-wider-dynamic-map-view"></script>
+  <script src="/app.js?v=20260716-ingame-time"></script>
 </body>
 </html>

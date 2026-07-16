@@ -2,19 +2,11 @@ const refreshRateControls = Array.from(document.querySelectorAll(".refresh-rate-
 const refreshRateToggles = Array.from(document.querySelectorAll(".refresh-rate-toggle"));
 const refreshRateValues = Array.from(document.querySelectorAll(".refresh-rate-value"));
 const refreshRateOptions = Array.from(document.querySelectorAll(".refresh-rate-option"));
+const fullscreenToggleEl = document.getElementById("fullscreen-toggle");
 const restartRaceEngineerEl = document.getElementById("restart-race-engineer");
 const sessionTimeEl = document.getElementById("session-time");
+const ingameTimeEl = document.getElementById("ingame-time");
 const lapsRemainingEl = document.getElementById("laps-remaining");
-const pitRoadStatusEl = document.getElementById("pit-road-status");
-const fuelLevelEl = document.getElementById("fuel-level");
-const fuelUseEl = document.getElementById("fuel-use");
-const focusGapEl = document.getElementById("focus-gap");
-const inputThrottleEl = document.getElementById("input-throttle");
-const inputBrakeEl = document.getElementById("input-brake");
-const inputClutchEl = document.getElementById("input-clutch");
-const barThrottleEl = document.getElementById("bar-throttle");
-const barBrakeEl = document.getElementById("bar-brake");
-const barClutchEl = document.getElementById("bar-clutch");
 const alertsEl = document.getElementById("alerts");
 const carNumberEl = document.getElementById("car-number");
 const driverNameEl = document.getElementById("driver-name");
@@ -26,15 +18,41 @@ const lapProgressEl = document.getElementById("lap-progress");
 const focusGearEl = document.getElementById("focus-gear");
 const focusRpmEl = document.getElementById("focus-rpm");
 const speedKphEl = document.getElementById("speed-kph");
-const tireLfEl = document.getElementById("tire-lf");
-const tireRfEl = document.getElementById("tire-rf");
-const tireLrEl = document.getElementById("tire-lr");
-const tireRrEl = document.getElementById("tire-rr");
-const lapTimeEl = document.getElementById("lap-time");
-const bestLapEl = document.getElementById("best-lap");
-const tireCompoundEl = document.getElementById("tire-compound");
-const fastRepairsEl = document.getElementById("fast-repairs");
-const steeringAngleEl = document.getElementById("steering-angle");
+const statusTireLfTempEl = document.getElementById("status-tire-lf-temp");
+const statusTireRfTempEl = document.getElementById("status-tire-rf-temp");
+const statusTireLrTempEl = document.getElementById("status-tire-lr-temp");
+const statusTireRrTempEl = document.getElementById("status-tire-rr-temp");
+const statusBrakeLfTempEl = document.getElementById("status-brake-lf-temp");
+const statusBrakeRfTempEl = document.getElementById("status-brake-rf-temp");
+const statusBrakeLrTempEl = document.getElementById("status-brake-lr-temp");
+const statusBrakeRrTempEl = document.getElementById("status-brake-rr-temp");
+const statusTireLfWearEl = document.getElementById("status-tire-lf-wear");
+const statusTireRfWearEl = document.getElementById("status-tire-rf-wear");
+const statusTireLrWearEl = document.getElementById("status-tire-lr-wear");
+const statusTireRrWearEl = document.getElementById("status-tire-rr-wear");
+const statusTireLfWearBarEl = document.getElementById("status-tire-lf-wear-bar");
+const statusTireRfWearBarEl = document.getElementById("status-tire-rf-wear-bar");
+const statusTireLrWearBarEl = document.getElementById("status-tire-lr-wear-bar");
+const statusTireRrWearBarEl = document.getElementById("status-tire-rr-wear-bar");
+const statusTireLfPressureEl = document.getElementById("status-tire-lf-pressure");
+const statusTireRfPressureEl = document.getElementById("status-tire-rf-pressure");
+const statusTireLrPressureEl = document.getElementById("status-tire-lr-pressure");
+const statusTireRrPressureEl = document.getElementById("status-tire-rr-pressure");
+const statusBatteryEl = document.getElementById("status-battery");
+const statusBatteryBarEl = document.getElementById("status-battery-bar");
+const statusBatteryPanelEl = document.getElementById("status-battery-panel");
+const statusEngineTempEl = document.getElementById("status-engine-temp");
+const statusEngineTempBarEl = document.getElementById("status-engine-temp-bar");
+const statusRpmValueEl = document.getElementById("status-rpm-value");
+const statusRpmBarEl = document.getElementById("status-rpm-bar");
+const statusFuelValueEl = document.getElementById("status-fuel-value");
+const statusFuelBarEl = document.getElementById("status-fuel-bar");
+const statusEmptyLapEl = document.getElementById("status-empty-lap");
+const statusTyreCards = Object.fromEntries(
+  Array.from(document.querySelectorAll(".status-tyre[data-tire]"))
+    .map((element) => [element.dataset.tire, element]),
+);
+const statusIndicators = Array.from(document.querySelectorAll("[data-status-for]"));
 const sessionTrackNameEl = document.getElementById("session-track-name");
 const windSpeedEl = document.getElementById("wind-speed");
 const humidityEl = document.getElementById("humidity");
@@ -147,7 +165,7 @@ const trackNameEl = document.getElementById("track-name");
 const tabs = Array.from(document.querySelectorAll(".tab"));
 const screens = Array.from(document.querySelectorAll(".screen"));
 
-let activeScreen = "leaderboard";
+let activeScreen = "overview";
 let isLoadingState = false;
 let isUpdatingRefreshRate = false;
 let refreshTimer = null;
@@ -427,6 +445,42 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+function syncFullscreenButton(isFullscreen) {
+  if (!fullscreenToggleEl) return;
+
+  fullscreenToggleEl.classList.toggle("is-active", isFullscreen);
+  fullscreenToggleEl.setAttribute("aria-pressed", String(isFullscreen));
+  fullscreenToggleEl.title = isFullscreen ? "Exit borderless fullscreen" : "Open borderless fullscreen";
+  fullscreenToggleEl.setAttribute("aria-label", fullscreenToggleEl.title);
+  const label = fullscreenToggleEl.querySelector("span");
+  if (label) label.textContent = isFullscreen ? "Exit full" : "Fullscreen";
+}
+
+fullscreenToggleEl?.addEventListener("click", async () => {
+  try {
+    if (window.raceEngineer?.toggleFullscreen) {
+      syncFullscreenButton(await window.raceEngineer.toggleFullscreen());
+      return;
+    }
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen();
+    }
+    syncFullscreenButton(Boolean(document.fullscreenElement));
+  } catch (error) {
+    console.error("Unable to toggle fullscreen", error);
+  }
+});
+
+window.raceEngineer?.onFullscreenChanged?.(syncFullscreenButton);
+document.addEventListener("fullscreenchange", () => {
+  if (!window.raceEngineer?.toggleFullscreen) {
+    syncFullscreenButton(Boolean(document.fullscreenElement));
+  }
+});
+
 restartRaceEngineerEl?.addEventListener("click", async () => {
   if (restartRaceEngineerEl.disabled) return;
 
@@ -480,6 +534,88 @@ function formatNumber(value, digits = 1, fallback = "--") {
     return fallback;
   }
   return value.toFixed(digits);
+}
+
+function formatWearPercent(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  const percent = value <= 1 ? value * 100 : value;
+  return `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
+}
+
+function setStatusBar(element, value, minimum, maximum, dimension = "width") {
+  if (!element) return;
+  const percent = typeof value === "number" && Number.isFinite(value) && maximum > minimum
+    ? Math.max(0, Math.min(100, ((value - minimum) / (maximum - minimum)) * 100))
+    : 0;
+  element.style[dimension] = `${percent}%`;
+}
+
+function setVisualState(element, state) {
+  if (element) element.dataset.state = state;
+}
+
+function setSystemState(name, state, barElement) {
+  setVisualState(barElement, state);
+  statusIndicators
+    .filter((element) => element.dataset.statusFor === name)
+    .forEach((element) => setVisualState(element, state));
+}
+
+function getThermalState(value, coldMaximum, normalMaximum, warningMaximum) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "unavailable";
+  if (value < coldMaximum) return "cold";
+  if (value <= normalMaximum) return "normal";
+  if (value <= warningMaximum) return "warning";
+  return "critical";
+}
+
+function getLevelState(value, warningMinimum, normalMinimum) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "unavailable";
+  if (value < warningMinimum) return "critical";
+  if (value < normalMinimum) return "warning";
+  return "normal";
+}
+
+function setWearStatusBar(element, value) {
+  setStatusBar(element, value, 0, 1);
+  const normalized = typeof value === "number" && Number.isFinite(value)
+    ? (value <= 1 ? value : value / 100)
+    : null;
+  setVisualState(element, normalized == null ? "unavailable" : getLevelState(normalized, 0.25, 0.6));
+}
+
+function formatTirePressure(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `${(value * 0.1450377).toFixed(2)} psi`;
+}
+
+function getEventLap(car, raceLap) {
+  const currentLap = Number(raceLap);
+  if (raceLap != null && Number.isFinite(currentLap)) return currentLap;
+
+  const completedLaps = Number(car?.laps_completed);
+  return car?.laps_completed != null && Number.isFinite(completedLaps)
+    ? completedLaps + 1
+    : "--";
+}
+
+function estimateEmptyLap(telemetry) {
+  const fuelLevel = Number(telemetry.player_fuel_level ?? telemetry.fuel_level);
+  const fuelUsePerHour = Number(telemetry.player_fuel_use_per_hour ?? telemetry.fuel_use_per_hour);
+  const fuelDensity = Number(telemetry.fuel_density);
+  const lapSeconds = Number(telemetry.best_lap_time || telemetry.lap_time);
+  const currentLap = Number(telemetry.current_lap);
+  if (
+    !Number.isFinite(fuelLevel) || fuelLevel < 0
+    || !Number.isFinite(fuelUsePerHour) || fuelUsePerHour <= 0
+    || !Number.isFinite(fuelDensity) || fuelDensity <= 0
+    || !Number.isFinite(lapSeconds) || lapSeconds <= 0
+    || !Number.isFinite(currentLap) || currentLap < 0
+  ) return "lap --";
+
+  const litersPerLap = (fuelUsePerHour * lapSeconds) / (3600 * fuelDensity);
+  if (!(litersPerLap > 0)) return "lap --";
+  return `lap ${Math.floor(currentLap + fuelLevel / litersPerLap)}`;
 }
 
 function formatWeatherSummary(weather) {
@@ -547,16 +683,15 @@ function formatInteger(value, fallback = "--") {
   return Math.round(value).toString();
 }
 
-function formatRaceLapCount(currentLap, totalLaps) {
-  if (
-    typeof currentLap !== "number"
-    || Number.isNaN(currentLap)
-    || typeof totalLaps !== "number"
-    || Number.isNaN(totalLaps)
-  ) {
+function formatRaceLapCount(currentLap, totalLaps, totalIsEstimated = false) {
+  if (typeof currentLap !== "number" || Number.isNaN(currentLap)) {
     return "--";
   }
-  return `${Math.round(currentLap)} / ${Math.round(totalLaps)}`;
+  const hasTotal = typeof totalLaps === "number" && !Number.isNaN(totalLaps);
+  const total = hasTotal
+    ? `${totalIsEstimated ? "~" : ""}${Math.round(totalLaps)}`
+    : "--";
+  return `${Math.round(currentLap)} / ${total}`;
 }
 
 function formatSeconds(value) {
@@ -655,6 +790,34 @@ function getClassKey(entry) {
   return formatClass(entry).trim().toLowerCase();
 }
 
+function getFocusedStandingEntry(telemetry) {
+  const standings = Array.isArray(telemetry?.standings) ? telemetry.standings : [];
+  const focusedCarIdx = String(telemetry?.focus_car_idx ?? "");
+  return standings.find(
+    (entry) => String(entry?.car_idx ?? "") === focusedCarIdx,
+  ) || standings.find((entry) => entry?.focused === true);
+}
+
+function getFocusedClassCarCount(telemetry) {
+  const standings = Array.isArray(telemetry?.standings) ? telemetry.standings : [];
+  const focusedEntry = getFocusedStandingEntry(telemetry);
+  if (!focusedEntry) return null;
+
+  const focusedClassId = focusedEntry.class_id;
+  if (focusedClassId !== undefined && focusedClassId !== null && focusedClassId !== "") {
+    return standings.filter((entry) => String(entry?.class_id) === String(focusedClassId)).length;
+  }
+
+  const focusedClassKey = getClassKey(focusedEntry);
+  return standings.filter((entry) => getClassKey(entry) === focusedClassKey).length;
+}
+
+function getFocusedClassName(telemetry) {
+  if (telemetry?.class_name && telemetry.class_name !== "--") return telemetry.class_name;
+  const focusedEntry = getFocusedStandingEntry(telemetry);
+  return focusedEntry ? formatClass(focusedEntry) : null;
+}
+
 function getClassColor(entry) {
   const name = formatClass(entry).toUpperCase();
   if (name.includes("GTP")) return "#ffd400";
@@ -693,6 +856,11 @@ function formatClock(value) {
   return [hours, minutes, seconds]
     .map((part) => String(part).padStart(2, "0"))
     .join(":");
+}
+
+function formatIngameTime(value) {
+  if (typeof value !== "number" || Number.isNaN(value) || value < 0) return "--";
+  return formatClock(value % 86400);
 }
 
 function updateTimeRemainingDisplay() {
@@ -739,13 +907,6 @@ function formatKph(speedMs) {
   return Math.round(speedMs * 3.6).toString();
 }
 
-function formatInput(value) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "--";
-  }
-  return `${Math.round(value * 100)}%`;
-}
-
 function formatGear(value) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "--";
@@ -757,16 +918,6 @@ function formatGear(value) {
     return "N";
   }
   return `${value}`;
-}
-
-function setBar(element, value) {
-  const width = typeof value === "number" && Number.isFinite(value)
-    ? Math.max(0, Math.min(100, value * 100))
-    : 0;
-  const nextWidth = `${width}%`;
-  if (element.style.width !== nextWidth) {
-    element.style.width = nextWidth;
-  }
 }
 
 function renderAlerts(alerts) {
@@ -2228,7 +2379,13 @@ function renderState(snapshot, frameTime = performance.now()) {
 
   const playerInputs = telemetry.player_inputs || {};
   const tireWear = telemetry.tire_wear || {};
-  const totalCars = telemetry.driver_count || "--";
+  const tireTemperature = telemetry.tire_temperature || {};
+  const brakeTemperature = telemetry.brake_temperature || {};
+  const tirePressure = telemetry.tire_pressure || {};
+  const playerRpm = telemetry.player_rpm ?? telemetry.focus_rpm;
+  const playerFuelLevel = telemetry.player_fuel_level ?? telemetry.fuel_level;
+  const focusedClassCarCount = getFocusedClassCarCount(telemetry);
+  const focusedClassName = getFocusedClassName(telemetry);
 
   renderSessionNotice(snapshot, telemetry);
 
@@ -2246,11 +2403,12 @@ function renderState(snapshot, frameTime = performance.now()) {
   setText(sessionTrackNameEl, telemetry.track_name || "--");
 
   setTimeRemainingCountdown(telemetry.session_time_remain);
+  setText(ingameTimeEl, formatIngameTime(telemetry.session_time_of_day));
   setText(lapsRemainingEl, formatRaceLapCount(
     telemetry.current_lap,
     telemetry.session_laps_total,
+    telemetry.session_laps_remain_estimated === true,
   ));
-  setText(pitRoadStatusEl, telemetry.on_pit_road ? "On pit road" : "Track");
   setText(windSpeedEl, typeof telemetry.weather?.wind_speed === "number"
     ? `${formatNumber(telemetry.weather.wind_speed, 1)} m/s`
     : "--");
@@ -2269,26 +2427,13 @@ function renderState(snapshot, frameTime = performance.now()) {
   setText(trackDeclaredWetEl, typeof telemetry.weather?.weather_declared_wet === "boolean"
     ? (telemetry.weather.weather_declared_wet ? "YES" : "NO")
     : "--");
-  setText(fuelLevelEl, formatNumber(telemetry.fuel_level, 1));
-  setText(fuelUseEl, telemetry.fuel_use_per_hour != null
-    ? `${formatNumber(telemetry.fuel_use_per_hour, 1)} kg/h`
-    : "--");
-  setText(focusGapEl, telemetry.focus_gap != null
-    ? `${formatNumber(telemetry.focus_gap, 2)} s`
-    : "--");
-
-  setText(inputThrottleEl, formatInput(playerInputs.throttle));
-  setText(inputBrakeEl, formatInput(playerInputs.brake));
-  setText(inputClutchEl, formatInput(playerInputs.clutch));
-  setBar(barThrottleEl, playerInputs.throttle);
-  setBar(barBrakeEl, playerInputs.brake);
-  setBar(barClutchEl, playerInputs.clutch);
-
   setText(carNumberEl, telemetry.car_number || "--");
   setText(driverNameEl, telemetry.driver_name || "Unknown driver");
   setText(carNameEl, telemetry.car_name || "Unknown car");
-  setText(positionEl, telemetry.position != null ? `${telemetry.position}/${totalCars}` : "--");
-  setText(classPositionEl, telemetry.class_position != null ? `${telemetry.class_position}` : "--");
+  setText(positionEl, telemetry.class_position != null
+    ? `${telemetry.class_position}/${focusedClassCarCount || "--"}`
+    : "--");
+  setText(classPositionEl, focusedClassName || "--");
   setText(lapsCompletedEl, formatInteger(telemetry.laps_completed));
   setText(lapProgressEl, telemetry.lap_dist_pct != null
     ? formatPercent(telemetry.lap_dist_pct * 100, 1)
@@ -2297,18 +2442,63 @@ function renderState(snapshot, frameTime = performance.now()) {
   setText(focusRpmEl, formatInteger(telemetry.focus_rpm));
   setText(speedKphEl, formatKph(playerInputs.speed_ms));
 
-  setText(tireLfEl, formatNumber(tireWear.lf, 2));
-  setText(tireRfEl, formatNumber(tireWear.rf, 2));
-  setText(tireLrEl, formatNumber(tireWear.lr, 2));
-  setText(tireRrEl, formatNumber(tireWear.rr, 2));
+  setText(statusTireLfTempEl, formatNumber(tireTemperature.lf, 0));
+  setText(statusTireRfTempEl, formatNumber(tireTemperature.rf, 0));
+  setText(statusTireLrTempEl, formatNumber(tireTemperature.lr, 0));
+  setText(statusTireRrTempEl, formatNumber(tireTemperature.rr, 0));
+  Object.entries(statusTyreCards).forEach(([position, element]) => {
+    setVisualState(element, getThermalState(tireTemperature[position], 60, 100, 120));
+  });
+  setText(statusBrakeLfTempEl, formatNumber(brakeTemperature.lf, 0));
+  setText(statusBrakeRfTempEl, formatNumber(brakeTemperature.rf, 0));
+  setText(statusBrakeLrTempEl, formatNumber(brakeTemperature.lr, 0));
+  setText(statusBrakeRrTempEl, formatNumber(brakeTemperature.rr, 0));
+  [[statusBrakeLfTempEl, brakeTemperature.lf], [statusBrakeRfTempEl, brakeTemperature.rf],
+    [statusBrakeLrTempEl, brakeTemperature.lr], [statusBrakeRrTempEl, brakeTemperature.rr]]
+    .forEach(([element, value]) => setVisualState(element, getThermalState(value, 300, 750, 900)));
+  setText(statusTireLfWearEl, formatWearPercent(tireWear.lf));
+  setText(statusTireRfWearEl, formatWearPercent(tireWear.rf));
+  setText(statusTireLrWearEl, formatWearPercent(tireWear.lr));
+  setText(statusTireRrWearEl, formatWearPercent(tireWear.rr));
+  setWearStatusBar(statusTireLfWearBarEl, tireWear.lf);
+  setWearStatusBar(statusTireRfWearBarEl, tireWear.rf);
+  setWearStatusBar(statusTireLrWearBarEl, tireWear.lr);
+  setWearStatusBar(statusTireRrWearBarEl, tireWear.rr);
+  setText(statusTireLfPressureEl, formatTirePressure(tirePressure.lf));
+  setText(statusTireRfPressureEl, formatTirePressure(tirePressure.rf));
+  setText(statusTireLrPressureEl, formatTirePressure(tirePressure.lr));
+  setText(statusTireRrPressureEl, formatTirePressure(tirePressure.rr));
 
-  setText(lapTimeEl, formatSeconds(telemetry.lap_time));
-  setText(bestLapEl, formatSeconds(telemetry.best_lap_time));
-  setText(tireCompoundEl, formatTireType(telemetry.tire_compound));
-  setText(fastRepairsEl, telemetry.fast_repairs_used != null ? telemetry.fast_repairs_used : "--");
-  setText(steeringAngleEl, playerInputs.steering_angle != null
-    ? `${formatNumber(playerInputs.steering_angle, 2)} rad`
+  setText(statusBatteryEl, telemetry.battery_voltage != null
+    ? `${formatNumber(telemetry.battery_voltage, 1)} V`
     : "--");
+  if (statusBatteryPanelEl) {
+    statusBatteryPanelEl.hidden = telemetry.player_is_gtp !== true;
+  }
+  setStatusBar(statusBatteryBarEl, telemetry.battery_voltage, 11, 14.5, "height");
+  setVisualState(statusBatteryBarEl, getLevelState(telemetry.battery_voltage, 11.5, 12.5));
+  setText(statusEngineTempEl, telemetry.engine_temperature != null
+    ? `${formatNumber(telemetry.engine_temperature, 0)}°C`
+    : "--");
+  setStatusBar(statusEngineTempBarEl, telemetry.engine_temperature, 60, 130);
+  setSystemState("engine", getThermalState(telemetry.engine_temperature, 60, 115, 125), statusEngineTempBarEl);
+  setText(statusRpmValueEl, playerRpm != null
+    ? `${formatInteger(playerRpm)} rpm`
+    : "--");
+  setStatusBar(statusRpmBarEl, playerRpm, 0, telemetry.rpm_limit || 10000);
+  const rpmRatio = typeof playerRpm === "number" && playerRpm >= 0
+    ? playerRpm / (telemetry.rpm_limit || 10000)
+    : null;
+  setSystemState("rpm", rpmRatio == null ? "unavailable" : getLevelState(1 - rpmRatio, 0.05, 0.15), statusRpmBarEl);
+  setText(statusFuelValueEl, playerFuelLevel != null
+    ? `${formatNumber(playerFuelLevel, 1)} L`
+    : "--");
+  setStatusBar(statusFuelBarEl, playerFuelLevel, 0, telemetry.fuel_capacity || 100);
+  const fuelRatio = typeof playerFuelLevel === "number" && playerFuelLevel >= 0
+    ? playerFuelLevel / (telemetry.fuel_capacity || 100)
+    : null;
+  setSystemState("fuel", fuelRatio == null ? "unavailable" : getLevelState(fuelRatio, 0.1, 0.25), statusFuelBarEl);
+  setText(statusEmptyLapEl, estimateEmptyLap(telemetry));
 
   setText(leaderboardCurrentLapEl, telemetry.current_lap ?? "--");
   setText(leaderboardPositionEl, telemetry.position != null ? `P${telemetry.position}` : "--");

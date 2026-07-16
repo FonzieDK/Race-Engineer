@@ -43,6 +43,14 @@ class EventStoreTests(unittest.TestCase):
 
             self.assertNotEqual(previous, current)
 
+    def test_late_connection_to_new_local_race_gets_a_new_identity(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = EventStore(Path(temp_dir) / "events.db")
+            previous = store.resolve_fallback_session_id(0, 5800.0, True)
+            current = store.resolve_fallback_session_id(0, 210.0, True)
+
+            self.assertNotEqual(previous, current)
+
     def test_replay_seek_keeps_the_same_fallback_identity(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             store = EventStore(Path(temp_dir) / "events.db")
@@ -50,6 +58,16 @@ class EventStoreTests(unittest.TestCase):
             after_seek = store.resolve_fallback_session_id(0, 2.0, True, True)
 
             self.assertEqual(before_seek, after_seek)
+
+    def test_replay_seek_does_not_hide_the_next_live_time_reset(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = EventStore(Path(temp_dir) / "events.db")
+            previous = store.resolve_fallback_session_id(0, 5800.0, True)
+            replay = store.resolve_fallback_session_id(0, 2.0, True, True)
+            current = store.resolve_fallback_session_id(0, 210.0, True)
+
+            self.assertEqual(previous, replay)
+            self.assertNotEqual(previous, current)
 
     def test_last_pit_lap_survives_store_recreation(self):
         with tempfile.TemporaryDirectory() as temp_dir:

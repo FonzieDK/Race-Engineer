@@ -18,6 +18,7 @@ class TelemetryReader:
         self._var_names = set()
         self._pit_history = {}
         self._car_presence_history = {}
+        self._cars_observed_present = set()
         self._pit_store = pit_store
         self._replay_seek_timer = None
         self._replay_start_timer = None
@@ -524,7 +525,7 @@ class TelemetryReader:
         reason_out=None,
         session_key=None,
     ):
-        """Keep a vacant car as PIT ROAD for one minute before showing GARAGE."""
+        """Keep a newly vacated car as PIT ROAD briefly before showing GARAGE."""
         reason = reason_out.strip().lower() if isinstance(reason_out, str) else ""
         if reason and reason != "running":
             return "retired"
@@ -536,7 +537,8 @@ class TelemetryReader:
         # still represented in its pit stall, iRacing reports the CarIdxRPM
         # floor value (300 RPM in live sessions). A missing RPM channel is
         # deliberately not enough evidence on its own.
-        no_driver = track_location == -1 or (
+        not_in_world = track_location == -1
+        no_driver = not_in_world or (
             bool(is_on_pit_road)
             and isinstance(rpm, (int, float))
             and rpm <= 300
@@ -545,8 +547,16 @@ class TelemetryReader:
         absent_since = self._car_presence_history.get(history_key)
 
         if not no_driver:
+            self._cars_observed_present.add(history_key)
             self._car_presence_history.pop(history_key, None)
             return "pit" if is_on_pit_road else "track"
+
+        # Do not invent a recent pit arrival after Race-Engineer starts. If the
+        # first telemetry already says the car is vacant, it belongs in the
+        # garage immediately. The grace period only applies after this process
+        # has actually observed the car occupied in the same session.
+        if not_in_world or history_key not in self._cars_observed_present:
+            return "garage"
 
         if absent_since is None or session_time < absent_since:
             self._car_presence_history[history_key] = session_time
@@ -667,6 +677,60 @@ class TelemetryReader:
         if completed_laps is None or remaining_laps is None:
             return None
         return completed_laps + remaining_laps
+
+    @staticmethod
+    def _get_overall_leader_idx(car_positions):
+        if not isinstance(car_positions, list):
+            return None
+        for car_idx, position in enumerate(car_positions):
+            if position == 1:
+                return car_idx
+        return None
+
+    def _get_race_lap_count(
+        self,
+        current_session,
+        leader_laps_completed,
+        leader_lap_progress,
+        leader_best_lap,
+        leader_last_lap,
+        session_time_remain,
+        session_flags,
+    ):
+        """Return the global race lap based on overall P1, never camera focus."""
+        completed = self._valid_lap_count(leader_laps_completed)
+        if completed is None:
+            return None, None, None, False
+
+        current_lap = completed + 1
+        scheduled_laps = self._parse_session_laps((current_session or {}).get("SessionLaps"))
+        if scheduled_laps is not None:
+            return current_lap, scheduled_laps, max(0, scheduled_laps - completed), False
+
+        flags = session_flags if isinstance(session_flags, int) else 0
+        if flags & irsdk.Flags.checkered:
+            return completed, completed, 0, False
+        if flags & irsdk.Flags.white:
+            # P1 receives white at the line and is now on the final lap.
+            return current_lap, current_lap, 1, False
+
+        reference_lap = next((
+            value for value in (leader_best_lap, leader_last_lap)
+            if isinstance(value, (int, float)) and value > 0
+        ), None)
+        if reference_lap is None or not isinstance(session_time_remain, (int, float)):
+            return current_lap, None, None, False
+
+        progress = self._clamp_progress(leader_lap_progress)
+        progress = progress if progress is not None else 0.0
+        # Once time expires, P1 finishes the active lap, receives white, and
+        # completes one final lap. The final lap count is unknowable until
+        # white is actually shown, so expose the calculated total together
+        # with the estimated flag. The UI marks it with a leading tilde.
+        continuous_laps_at_expiry = completed + progress + max(0.0, session_time_remain) / reference_lap
+        estimated_total = math.ceil(continuous_laps_at_expiry - 1e-9) + 1
+        estimated_total = max(current_lap, estimated_total)
+        return current_lap, estimated_total, max(0, estimated_total - completed), True
 
     def _get_track_name(self):
         """Get the current track name from WeekendInfo."""
@@ -1226,6 +1290,9 @@ class TelemetryReader:
             player_car_idx = self._get_var("PlayerCarIdx")
             focus_car_idx = self._select_focus_car_idx(cam_car_idx, player_car_idx)
             driver = self._get_driver_info(focus_car_idx)
+            player_driver = self._get_driver_info(player_car_idx)
+            player_class_name = self._get_class_name(player_driver)
+            player_is_gtp = "GTP" in str(player_class_name).upper()
             driver_info = self.ir["DriverInfo"] or {}
             drivers = driver_info.get("Drivers", []) if isinstance(driver_info, dict) else []
             is_player_car = focus_car_idx == player_car_idx
@@ -1245,6 +1312,7 @@ class TelemetryReader:
             focus_tire_compound_values = self._get_var("CarIdxTireCompound", [])
             focus_fast_repairs_values = self._get_var("CarIdxFastRepairsUsed", [])
             session_time = self._get_var("SessionTime")
+            session_time_of_day = self._get_var("SessionTimeOfDay")
             replay_session_time = self._get_var("ReplaySessionTime")
             session_num = self._get_var("SessionNum", 0)
             is_replay_playing = bool(self._get_var("IsReplayPlaying", False))
@@ -1263,16 +1331,51 @@ class TelemetryReader:
             focused_laps_completed = self._array_value(laps_completed, focus_car_idx)
             focused_last_lap = self._array_value(last_lap_times, focus_car_idx)
             focused_best_lap = self._array_value(best_lap_times, focus_car_idx)
-            session_laps_remain, session_laps_remain_estimated = self._get_laps_remaining(
-                focused_laps_completed,
-                focused_best_lap,
-                focused_last_lap,
+            current_session = self._get_current_session()
+            session_flags = self._get_var("SessionFlags", 0)
+            session_state = self._get_var("SessionState")
+            session_type = current_session.get("SessionType")
+            leader_car_idx = self._get_overall_leader_idx(car_positions)
+            if leader_car_idx is None:
+                leader_car_idx = focus_car_idx
+            leader_laps_completed = self._array_value(laps_completed, leader_car_idx)
+            leader_best_lap = self._array_value(best_lap_times, leader_car_idx)
+            leader_last_lap = self._array_value(last_lap_times, leader_car_idx)
+            leader_lap_progress = self._array_value(lap_dist_pct, leader_car_idx)
+            (
+                current_lap,
+                session_laps_total,
+                session_laps_remain,
+                session_laps_remain_estimated,
+            ) = self._get_race_lap_count(
+                current_session,
+                leader_laps_completed,
+                leader_lap_progress,
+                leader_best_lap,
+                leader_last_lap,
                 session_time_remain,
+                session_flags,
             )
-            current_lap = self._get_current_lap(focused_laps_completed)
-            session_laps_total = self._get_total_laps(focused_laps_completed, session_laps_remain)
 
-            fuel_level = self._get_var("FuelLevel") if is_player_car else None
+            player_fuel_level = self._get_var("FuelLevel")
+            player_fuel_use_per_hour = self._get_var("FuelUsePerHour")
+            player_rpm = self._get_var("RPM")
+            fuel_level = player_fuel_level if is_player_car else None
+            fuel_capacity = (
+                driver_info.get("DriverCarFuelMaxLtr")
+                if isinstance(driver_info, dict)
+                else None
+            )
+            fuel_density = (
+                driver_info.get("DriverCarFuelKgPerLtr")
+                if isinstance(driver_info, dict)
+                else None
+            )
+            rpm_limit = (
+                driver_info.get("DriverCarRedLine")
+                if isinstance(driver_info, dict)
+                else None
+            )
             air_temp = self._get_var("AirTemp")
             track_temp = self._get_var("TrackTemp")
             if track_temp is None:
@@ -1296,11 +1399,7 @@ class TelemetryReader:
                 weekend_info = {}
             session_id = weekend_info.get("SessionID")
             subsession_id = weekend_info.get("SubSessionID")
-            current_session = self._get_current_session()
             session_num = self._get_var("SessionNum", current_session.get("SessionNum"))
-            session_type = current_session.get("SessionType")
-            session_state = self._get_var("SessionState")
-            session_flags = self._get_var("SessionFlags", 0)
             race_started = self._race_has_started(session_type, session_state, session_flags)
             session_key = self._get_session_key(
                 session_id,
@@ -1385,6 +1484,8 @@ class TelemetryReader:
                 "focus_car_idx": focus_car_idx,
                 "player_car_idx": player_car_idx,
                 "is_player_car": is_player_car,
+                "player_class_name": player_class_name,
+                "player_is_gtp": player_is_gtp,
                 "session_key": session_key,
                 "session_id": session_id,
                 "subsession_id": subsession_id,
@@ -1396,6 +1497,7 @@ class TelemetryReader:
                 "driver_name": driver.get("UserName") or driver.get("AbbrevName") or "Unknown driver",
                 "car_number": driver.get("CarNumber", "--"),
                 "car_name": driver.get("CarScreenName", "Unknown car"),
+                "class_name": self._get_class_name(driver),
                 "team_name": driver.get("TeamName", ""),
                 "position": self._array_value(car_positions, focus_car_idx),
                 "class_position": self._normalize_class_position(self._array_value(class_positions, focus_car_idx)),
@@ -1414,6 +1516,12 @@ class TelemetryReader:
                 "tire_compound": self._array_value(focus_tire_compound_values, focus_car_idx),
                 "fast_repairs_used": self._array_value(focus_fast_repairs_values, focus_car_idx),
                 "fuel_level": fuel_level,
+                "player_fuel_level": player_fuel_level,
+                "player_fuel_use_per_hour": player_fuel_use_per_hour,
+                "player_rpm": player_rpm,
+                "fuel_capacity": fuel_capacity,
+                "fuel_density": fuel_density,
+                "rpm_limit": rpm_limit,
                 "fuel_use_per_hour": self._get_var("FuelUsePerHour") if is_player_car else None,
                 "weather": {
                     "air_temp": air_temp,
@@ -1438,7 +1546,13 @@ class TelemetryReader:
                     "lr": None,
                     "rr": None,
                 },
+                "tire_temperature": {"lf": None, "rf": None, "lr": None, "rr": None},
+                "brake_temperature": {"lf": None, "rf": None, "lr": None, "rr": None},
+                "tire_pressure": {"lf": None, "rf": None, "lr": None, "rr": None},
+                "battery_voltage": None,
+                "engine_temperature": None,
                 "session_time": session_time,
+                "session_time_of_day": session_time_of_day,
                 "replay_session_time": replay_session_time,
                 "session_num": session_num,
                 "is_replay_playing": is_replay_playing,
@@ -1463,15 +1577,37 @@ class TelemetryReader:
                 "track_name": track_name,
             }
 
-            if is_player_car:
-                # iRacing exposes rich telemetry like fuel for the player car.
-                # Other focused cars mainly use CarIdx arrays.
-                data["tire_wear"] = {
-                    "lf": self._get_var("LFwearL"),
-                    "rf": self._get_var("RFwearL"),
-                    "lr": self._get_var("LRwearL"),
-                    "rr": self._get_var("RRwearL"),
-                }
+            # These scalar SDK channels always describe the player's car,
+            # regardless of which car the camera currently follows. Car Status
+            # is explicitly a player-car card, so keep it populated on camera changes.
+            data["tire_wear"] = {
+                "lf": self._get_var("LFwearL"),
+                "rf": self._get_var("RFwearL"),
+                "lr": self._get_var("LRwearL"),
+                "rr": self._get_var("RRwearL"),
+            }
+            data["tire_temperature"] = {
+                "lf": self._get_var("LFtempCM"),
+                "rf": self._get_var("RFtempCM"),
+                "lr": self._get_var("LRtempCM"),
+                "rr": self._get_var("RRtempCM"),
+            }
+            data["brake_temperature"] = {
+                "lf": self._get_var("LFbrakeTemp"),
+                "rf": self._get_var("RFbrakeTemp"),
+                "lr": self._get_var("LRbrakeTemp"),
+                "rr": self._get_var("RRbrakeTemp"),
+            }
+            data["tire_pressure"] = {
+                "lf": self._get_var("LFpressure"),
+                "rf": self._get_var("RFpressure"),
+                "lr": self._get_var("LRpressure"),
+                "rr": self._get_var("RRpressure"),
+            }
+            data["battery_voltage"] = self._get_var("Voltage")
+            data["engine_temperature"] = self._get_var("WaterTemp")
+            if data["engine_temperature"] is None:
+                data["engine_temperature"] = self._get_var("OilTemp")
 
             return data
         finally:

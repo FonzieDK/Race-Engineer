@@ -9,11 +9,15 @@ venv/
 node_modules/
 dist/
 build/
+out/
+dist-python/
+.build-tools/
 
 # Runtime data and logs
 logs/
 *.log
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
 *.lock

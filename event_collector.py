@@ -10,10 +10,10 @@ from pathlib import Path
 from event_store import EventStore
 from race_event_tracker import RaceEventTracker
 from telemetry import TelemetryReader
+from runtime_paths import COLLECTOR_LOCK_PATH, DATABASE_PATH
 
 
-BASE_DIR = Path(__file__).resolve().parent
-LOCK_PATH = BASE_DIR / "sql" / "event-collector.lock"
+LOCK_PATH = COLLECTOR_LOCK_PATH
 
 
 def acquire_single_instance():
@@ -44,7 +44,7 @@ def run() -> int:
     if lock is None:
         return 0
 
-    store = EventStore(BASE_DIR / "sql" / "events.db")
+    store = EventStore(DATABASE_PATH)
     tracker = RaceEventTracker(store)
     while True:
         reader = TelemetryReader(store)
