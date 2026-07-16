@@ -15,20 +15,6 @@ Race-Engineer is an Electron desktop app for real-time iRacing telemetry with a 
 The MSI installer includes Electron, Node.js, and the Python runtime. Installed users
 do not need to install these tools separately.
 
-## Development setup
-
-1. Ensure Python 3.6 or higher is installed on your system.
-2. Run the setup script: `python setup_iracing_env.py`
-   - This creates a virtual environment, installs Python dependencies, and checks for iRacing.
-3. If iRacing is not running, start it before launching Race-Engineer.
-4. Install Electron dependencies: `npm install`
-
-## Development usage
-
-1. Run `start_race_engineer.bat` to launch Race-Engineer.
-2. Electron starts the Python backend and a detached event collector automatically.
-3. The app window opens and loads Race-Engineer directly.
-
 ## Windows MSI installer
 
 Build a 64-bit Windows installer from PowerShell:
