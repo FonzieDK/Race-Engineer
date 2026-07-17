@@ -10,7 +10,7 @@ echo Checking runtime dependencies...
 set "SCRIPT_DIR=%~dp0"
 set "APP_ROOT=%SCRIPT_DIR%..\"
 set "PYTHON_EXE=%APP_ROOT%venv\Scripts\python.exe"
-set "ELECTRON_EXE=%APP_ROOT%node_modules\electron\dist\electron.exe"
+set "ELECTRON_CLI=%APP_ROOT%node_modules\electron\cli.js"
 set "NODE_EXE="
 set "NPM_CMD="
 
@@ -39,7 +39,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "%ELECTRON_EXE%" (
+if not exist "%ELECTRON_CLI%" (
     echo.
     echo ERROR: Electron is not installed in the project.
     if defined NPM_CMD (
@@ -56,13 +56,17 @@ if not exist "%ELECTRON_EXE%" (
 
 if not defined NODE_EXE (
     echo.
-    echo WARNING: Node.js was not detected in PATH.
-    echo This script may still work if Electron is installed locally.
+    echo ERROR: Node.js was not found.
+    echo Electron 42 and newer use Node.js to locate and, when needed,
+    echo download the matching Electron runtime.
     echo.
+    pause
+    exit /b 1
 )
 
 echo Closing old Race-Engineer processes...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = (Resolve-Path '.').Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'electron.exe' -and $_.CommandLine -like ('*' + $root + '*')) -or ($_.Name -eq 'python.exe' -and $_.CommandLine -like '*race_engineer.server*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
+set "ELECTRON_RUN_AS_NODE="
 set "ELECTRON_APP=%APP_ROOT%."
-start "" "%ELECTRON_EXE%" "%ELECTRON_APP%"
+powershell -NoProfile -WindowStyle Hidden -Command "Start-Process -FilePath $env:NODE_EXE -ArgumentList ('\"{0}\" \"{1}\"' -f $env:ELECTRON_CLI, $env:ELECTRON_APP) -WindowStyle Hidden"

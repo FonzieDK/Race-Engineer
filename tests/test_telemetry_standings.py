@@ -304,6 +304,35 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         self.assertFalse(track_map["cars"][0]["is_on_pit_road"])
         self.assertTrue(track_map["cars"][1]["is_on_pit_road"])
 
+    def test_track_map_excludes_pace_car_and_spectators(self):
+        reader = self.make_reader([])
+        track_map = reader._build_track_map(
+            drivers=[
+                {"CarIdx": 0, "CarNumber": "10", "UserName": "Racer"},
+                {
+                    "CarIdx": 1,
+                    "CarNumber": "0",
+                    "UserName": "Pace Car",
+                    "CarIsPaceCar": 1,
+                },
+                {
+                    "CarIdx": 2,
+                    "CarNumber": "0",
+                    "UserName": "Spectator",
+                    "IsSpectator": 1,
+                },
+            ],
+            positions=[1, 0, 0],
+            class_positions=[0, 0, 0],
+            lap_dist_pct=[0.4, 0.5, 0.6],
+            focus_car_idx=0,
+        )
+
+        self.assertEqual(
+            [car["car_number"] for car in track_map["cars"]],
+            ["10"],
+        )
+
     def test_car_vacated_after_being_seen_stays_on_pit_road_for_one_minute(self):
         reader = self.make_reader([])
 

@@ -12,10 +12,10 @@ test("track status uses the same detail-row layout as weather status", () => {
   assert.match(html, /id="track-wetness"/);
   assert.match(html, /id="track-skies"/);
   assert.match(html, /id="track-declared-wet"/);
-  assert.match(html, /id="weather-live-status"[^>]*>Waiting</);
+  assert.doesNotMatch(html, /id="weather-live-status"/);
   assert.match(script, /formatTrackWetness\(telemetry\.weather\?\.track_wetness\)/);
   assert.match(script, /formatSkies\(telemetry\.weather\?\.skies\)/);
-  assert.match(script, /Date\.now\(\) - updatedAtMs <= freshnessLimitMs/);
+  assert.match(script, /Date\.now\(\) - lastSnapshotAt <= freshnessLimitMs/);
   assert.match(script, /const telemetry = hasRecentTelemetry \? sourceTelemetry : \{\}/);
   assert.doesNotMatch(html, />Dirt</);
 });

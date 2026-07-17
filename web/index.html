@@ -4,14 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Race-Engineer</title>
-  <link rel="stylesheet" href="/app.css?v=20260716-left-tabs-spacing">
+  <link rel="stylesheet" href="/app.css?v=20260717-symmetric-repair">
 </head>
 <body>
-  <section id="awaiting-data" class="awaiting-data" aria-live="polite">
+  <section id="iracing-pause" class="awaiting-data" aria-live="polite" aria-hidden="false">
     <div class="awaiting-card">
-      <span class="awaiting-line"></span>
-      <h2>AWATING DATA</h2>
-      <p>Start iRacing and enter a live session.</p>
+      <div class="awaiting-start-lights" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <span class="awaiting-kicker">Race-Engineer &middot; Start procedure</span>
+      <h2><span>Awaiting</span> race start</h2>
+      <div class="awaiting-status"><span aria-hidden="true"></span>Waiting in pit lane</div>
     </div>
   </section>
 
@@ -26,6 +29,8 @@
         <button class="tab is-active" type="button" data-screen="overview">Overview</button>
         <button class="tab" type="button" data-screen="leaderboard">Leaderboard</button>
         <button class="tab" type="button" data-screen="map">Track Map</button>
+        <button class="tab" type="button" data-screen="test">Weather</button>
+        <button class="tab" type="button" data-screen="car-setup-pit">Car Setup - Pit</button>
       </nav>
 
       <div class="meta-strip">
@@ -42,6 +47,15 @@
             <button class="refresh-rate-option is-selected" type="button" role="option" aria-selected="true" data-hz="30">30 Hz</button>
             <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="60">60 Hz</button>
           </div>
+        </div>
+        <div id="unit-settings" class="unit-settings">
+          <button id="unit-settings-toggle" class="unit-settings-toggle fullscreen-toggle" type="button" title="Measurement settings" aria-label="Open measurement settings" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"></path>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.55v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-1.5-1H2.5V10h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.56 4.2l.06.06A1.7 1.7 0 0 0 8.5 4.6a1.7 1.7 0 0 0 1-1.5V3h4.05v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 18.95 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.05 1Z"></path>
+            </svg>
+            <span>Units</span>
+          </button>
         </div>
         <button id="fullscreen-toggle" class="fullscreen-toggle" type="button" title="Open borderless fullscreen" aria-label="Open borderless fullscreen" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -68,10 +82,10 @@
               <p class="section-label">Session</p>
             </div>
             <div class="info-rows">
-              <div class="info-row"><span>Time remain</span><strong id="session-time">--</strong></div>
-              <div class="info-row"><span>Ingame time</span><strong id="ingame-time">--</strong></div>
-              <div class="info-row"><span>Laps</span><strong id="laps-remaining">--</strong></div>
               <div class="info-row"><span>Track</span><strong id="session-track-name">--</strong></div>
+              <div class="info-row"><span>Ingame time</span><strong id="ingame-time">--</strong></div>
+              <div class="info-row"><span>Time remain</span><strong id="session-time">--</strong></div>
+              <div class="info-row"><span>Laps</span><strong id="laps-remaining">--</strong></div>
             </div>
           </article>
 
@@ -126,13 +140,13 @@
                 <strong id="focus-rpm">--</strong>
               </div>
               <div class="dial">
-                <span class="mini-label">Speed</span>
+                <span id="speed-unit-label" class="mini-label">Speed · km/h</span>
                 <strong id="speed-kph">--</strong>
               </div>
             </div>
           </article>
 
-          <section class="charts-grid">
+          <section class="charts-grid" data-car-status-panel>
             <article class="module car-status-module" aria-label="Tyre, brake and power-unit status">
               <div class="module-head">
                 <p class="section-label">Car Status</p>
@@ -146,7 +160,7 @@
                   </div>
                   <div class="tyre-stack">
                     <div class="status-tyre" data-tire="lf" data-state="unavailable">
-                      <span>Tyre temp</span><small>&deg;C</small>
+                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
                       <strong id="status-tire-lf-temp">--</strong>
                     </div>
                     <div class="corner-wear">
@@ -155,7 +169,7 @@
                     </div>
                   </div>
                   <div class="brake-status">
-                    <span>Brake temp (&deg;C)</span>
+                    <span>Brake temp (<i data-temperature-unit>&deg;C</i>)</span>
                     <div class="brake-values">
                       <strong id="status-brake-lf-temp">--</strong>
                       <strong id="status-brake-rf-temp">--</strong>
@@ -164,7 +178,7 @@
                   </div>
                   <div class="tyre-stack">
                     <div class="status-tyre" data-tire="rf" data-state="unavailable">
-                      <span>Tyre temp</span><small>&deg;C</small>
+                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
                       <strong id="status-tire-rf-temp">--</strong>
                     </div>
                     <div class="corner-wear">
@@ -181,13 +195,13 @@
 
                 <div class="car-systems">
                   <div id="status-battery-panel" class="battery-status" hidden>
-                    <span>Battery</span>
+                    <span>SoC</span>
                     <div class="battery-gauge"><i id="status-battery-bar"></i></div>
                     <strong id="status-battery">--</strong>
                   </div>
                   <div class="system-bars">
                     <div class="system-line">
-                      <div class="system-label"><i data-status-for="engine"></i><span>Engine temp (&deg;C)</span><i data-status-for="engine"></i></div>
+                      <div class="system-label"><i data-status-for="engine"></i><span>Engine temp (<b data-temperature-unit>&deg;C</b>)</span><i data-status-for="engine"></i></div>
                       <div class="system-rail engine-rail"><i id="status-engine-temp-bar"></i></div>
                       <div class="system-scale"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span><span>120</span><span>140</span></div>
                       <strong id="status-engine-temp">--</strong>
@@ -216,7 +230,7 @@
                   </div>
                   <div class="tyre-stack">
                     <div class="status-tyre" data-tire="lr" data-state="unavailable">
-                      <span>Tyre temp</span><small>&deg;C</small>
+                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
                       <strong id="status-tire-lr-temp">--</strong>
                     </div>
                     <div class="corner-wear">
@@ -225,7 +239,7 @@
                     </div>
                   </div>
                   <div class="brake-status">
-                    <span>Brake temp (&deg;C)</span>
+                    <span>Brake temp (<i data-temperature-unit>&deg;C</i>)</span>
                     <div class="brake-values">
                       <strong id="status-brake-lr-temp">--</strong>
                       <strong id="status-brake-rr-temp">--</strong>
@@ -234,7 +248,7 @@
                   </div>
                   <div class="tyre-stack">
                     <div class="status-tyre" data-tire="rr" data-state="unavailable">
-                      <span>Tyre temp</span><small>&deg;C</small>
+                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
                       <strong id="status-tire-rr-temp">--</strong>
                     </div>
                     <div class="corner-wear">
@@ -250,6 +264,7 @@
                 </div>
               </div>
             </article>
+            <div class="overview-car-status-placeholder" aria-hidden="true"></div>
           </section>
 
         </section>
@@ -327,7 +342,7 @@
       <article class="module full-screen-module">
         <div class="module-head map-toolbar">
           <div class="map-circuit-menu" aria-label="Current circuit">
-            <span class="map-toolbar-label" id="track-name">Track Map</span>
+            <span class="map-toolbar-label">Class</span>
             <div id="map-class-filters" class="leaderboard-filters map-class-filters" aria-label="Filter cars on map by class">
               <button type="button" class="leaderboard-filter class-filter is-active" data-class-filter="all">
                 <span class="class-filter-plate-name">All</span>
@@ -335,9 +350,9 @@
               </button>
             </div>
           </div>
-          <div class="map-focus-banner">
+          <div class="map-focus-banner trackmap-focus-banner">
             <span class="mini-label">Viewing</span>
-            <strong id="map-watching">Venter på kamera...</strong>
+            <strong id="map-watching">Waiting for camera...</strong>
           </div>
         </div>
         <div class="trackmap-wrap">
@@ -382,7 +397,6 @@
             <div class="map-weather-card">
               <div class="map-weather-head">
                 <p class="section-label">Weather status</p>
-                <span id="weather-live-status" class="mini-label" aria-live="polite">Waiting</span>
               </div>
               <div class="weather-row"><span>WIND SPEED</span><strong id="wind-speed">--</strong></div>
               <div class="weather-row"><span>DIRECTION</span><strong id="wind-direction">--</strong></div>
@@ -445,10 +459,546 @@
       </article>
     </section>
 
+    <section class="screen" data-screen-panel="test">
+      <article class="test-weather-dashboard" aria-label="Live weather and track map">
+        <header class="test-weather-header">
+          <div class="test-weather-title">
+            <span class="test-weather-icon" aria-hidden="true">&#9729;</span>
+            <div>
+              <p class="section-label">Weather</p>
+              <strong id="test-weather-track-name">Waiting for track</strong>
+            </div>
+          </div>
+          <span id="test-weather-live-status" class="test-weather-live-status" aria-live="polite">Offline</span>
+        </header>
+
+        <div class="test-weather-layout">
+          <div class="test-weather-compare" aria-label="Weather visualization comparison">
+          <section class="test-weather-map-card" aria-label="Telemetry-based weather estimate">
+            <div id="test-weather-map-stage" class="test-weather-map-stage test-weather-square">
+              <div
+                id="test-weather-cloud-layer"
+                class="test-weather-cloud-layer"
+                data-cloud-cover="unknown"
+                aria-label="Live cloud cover unavailable"
+              >
+                <span class="weather-cloud weather-cloud-1"></span>
+                <span class="weather-cloud weather-cloud-2"></span>
+                <span class="weather-cloud weather-cloud-3"></span>
+                <span class="weather-cloud weather-cloud-4"></span>
+                <span class="weather-cloud weather-cloud-5"></span>
+                <span class="weather-cloud weather-cloud-6"></span>
+                <span class="weather-cloud weather-cloud-7"></span>
+                <span class="weather-cloud weather-cloud-8"></span>
+                <span class="weather-cloud weather-cloud-9"></span>
+                <span class="weather-cloud weather-cloud-10"></span>
+                <span class="weather-rain-depth weather-rain-depth-far" aria-hidden="true"></span>
+                <span class="weather-rain-depth weather-rain-depth-near" aria-hidden="true"></span>
+              </div>
+              <canvas
+                id="test-weather-radar-canvas"
+                class="test-weather-radar-canvas"
+                aria-label="Simulated precipitation field calculated from live iRacing weather telemetry"
+              ></canvas>
+              <span
+                id="test-weather-radar-badge"
+                class="test-weather-radar-badge"
+                title="Cell positions are simulated; intensity and movement use live iRacing telemetry"
+              >SIMULATED PRECIPITATION</span>
+              <div class="test-weather-radar-legend" aria-hidden="true">
+                <span>LIGHT</span>
+                <i></i>
+                <span>HEAVY</span>
+              </div>
+              <button
+                id="test-weather-zoom-toggle"
+                class="test-weather-zoom-toggle"
+                type="button"
+                aria-label="Zoom track map out three times"
+                aria-pressed="false"
+                title="Zoom track map out 3×"
+              >
+                <span aria-hidden="true">&minus;</span>
+                <strong>3&times;</strong>
+              </button>
+              <svg id="test-weather-map" viewBox="0 0 520 380" aria-label="Weather map using the current track outline">
+                <g id="test-weather-map-content">
+                  <g id="test-weather-map-layers"></g>
+                  <use href="#test-weather-track-outline" class="test-weather-track-halo" aria-hidden="true"></use>
+                  <path id="test-weather-track-outline" class="test-weather-track-outline"></path>
+                </g>
+              </svg>
+            </div>
+            <div id="test-weather-forecast" class="test-weather-forecast" aria-label="Hourly weather forecast">
+              <div class="test-weather-forecast-track">
+                <article class="test-weather-forecast-hour">
+                  <time datetime="22:00">10:00 pm</time>
+                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 89%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
+                  <small>22 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="00:00">12:00 am</time>
+                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 88%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
+                  <small>18 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour is-current">
+                  <time datetime="00:05">12:05 am</time>
+                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 88%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
+                  <small>18 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="02:00">2:00 am</time>
+                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
+                  <small>14 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="04:00">4:00 am</time>
+                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
+                  <small>13 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="06:00">6:00 am</time>
+                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 98%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
+                  <small>12 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="08:00">8:00 am</time>
+                  <span class="test-weather-forecast-icon is-day" aria-label="Partly cloudy">&#127780;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-w" aria-hidden="true">&#8593;</span> W</span>
+                  <small>15 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="10:00">10:00 am</time>
+                  <span class="test-weather-forecast-icon is-day" aria-label="Sunny">&#9728;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 90%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-w" aria-hidden="true">&#8593;</span> W</span>
+                  <small>22 km/h</small>
+                </article>
+                <article class="test-weather-forecast-hour">
+                  <time datetime="12:00">12:00 pm</time>
+                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
+                  <strong>19&nbsp;&deg;C</strong>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 79%</span>
+                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 89%</span>
+                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
+                  <small>24 km/h</small>
+                </article>
+              </div>
+            </div>
+          </section>
+          </div>
+
+          <aside class="test-weather-details" aria-label="Current weather details">
+            <section class="test-weather-detail-card">
+              <div class="test-weather-detail-heading">
+                <p>Weather status</p>
+                <span id="test-weather-detail-live">Offline</span>
+              </div>
+              <div class="test-weather-detail-row"><span>Precipitation</span><strong id="test-weather-precipitation">--</strong></div>
+              <div class="test-weather-detail-row"><span>Wind speed</span><strong id="test-weather-wind-speed">--</strong></div>
+              <div class="test-weather-detail-row"><span>Direction</span><strong id="test-weather-wind-direction">--</strong></div>
+              <div class="test-weather-detail-row"><span>Air temp</span><strong id="test-weather-air-temp">--</strong></div>
+              <div class="test-weather-detail-row"><span>Humidity</span><strong id="test-weather-humidity">--</strong></div>
+            </section>
+
+            <section class="test-weather-detail-card">
+              <div class="test-weather-detail-heading"><p>Track status</p></div>
+              <div class="test-weather-detail-row"><span>Track temp</span><strong id="test-weather-track-temp">--</strong></div>
+              <div class="test-weather-detail-row"><span>Wetness</span><strong id="test-weather-wetness">--</strong></div>
+              <div class="test-weather-detail-row"><span>Skies</span><strong id="test-weather-skies">--</strong></div>
+              <div class="test-weather-detail-row"><span>Declared wet</span><strong id="test-weather-declared-wet">--</strong></div>
+            </section>
+
+          </aside>
+        </div>
+      </article>
+    </section>
+
+    <section class="screen" data-screen-panel="car-setup-pit" aria-label="Car setup and car pit">
+      <div class="car-setup-layout" data-car-status-target>
+        <article class="module car-setup-window" aria-label="Pit setup">
+          <div class="module-head">
+            <p class="section-label">Pit Setup</p>
+          </div>
+          <div class="car-setup-window-content pit-setup-preview">
+            <section class="pit-plan-summary" aria-label="Planned pit stop summary">
+              <div>
+                <span>Next stop</span>
+                <strong>Lap 18</strong>
+              </div>
+              <div>
+                <span>Pit window</span>
+                <strong>Lap 17–21</strong>
+              </div>
+              <div>
+                <span>Est. stop</span>
+                <strong class="pit-accent-value">31.5 s</strong>
+              </div>
+            </section>
+
+            <section class="pit-setup-section">
+              <div class="pit-setup-heading">
+                <div>
+                  <span>Fuel</span>
+                  <small>Calculated to finish + 1 lap</small>
+                </div>
+                <strong id="pit-fuel-add-summary">+35.0 L</strong>
+              </div>
+              <div class="pit-fuel-visual">
+                <div id="pit-fuel-gauge" class="pit-fuel-gauge" style="--fuel-level: 39.5%; --fuel-arc-level: 29.625%" aria-label="Fuel after stop: 47.4 litres, 39.5 percent full">
+                  <div class="pit-fuel-gauge-core">
+                    <span>Fuel after stop</span>
+                    <strong id="pit-fuel-after-stop">47.4</strong>
+                    <small id="pit-fuel-percent">L &middot; 39.5% full</small>
+                  </div>
+                </div>
+                <div class="pit-fuel-readout">
+                  <div class="pit-fuel-control">
+                    <label for="pit-fuel-add">Add fuel</label>
+                    <div>
+                      <input id="pit-fuel-add" type="number" value="35.0" min="0" max="107.6" step="0.5" aria-describedby="pit-fuel-equation">
+                      <span>L</span>
+                    </div>
+                  </div>
+                  <div class="pit-fuel-scale" aria-hidden="true"><i id="pit-fuel-scale-fill" style="width: 39.5%"></i></div>
+                  <div class="pit-fuel-scale-labels" aria-hidden="true"><span>0</span><span>60</span><span>120 L</span></div>
+                  <div id="pit-fuel-equation" class="pit-fuel-equation" aria-label="12.4 litres at pit entry plus 35 litres added equals 47.4 litres after the stop">
+                    <div><span>Fuel at pit entry</span><strong>12.4 L</strong></div>
+                    <b aria-hidden="true">+</b>
+                    <div><span>Fuel added</span><strong id="pit-fuel-added-value">35.0 L</strong></div>
+                    <b aria-hidden="true">=</b>
+                    <div class="pit-fuel-equation-total"><span>After stop</span><strong id="pit-fuel-total-value">47.4 L</strong></div>
+                  </div>
+                  <div class="pit-data-row"><span>Estimated range</span><strong>22 laps</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="pit-setup-section pit-tire-service-section">
+              <div class="pit-setup-heading">
+                <div>
+                  <span>Services</span>
+                </div>
+                <strong id="pit-tire-change-estimate">EST: 0.0 s</strong>
+              </div>
+              <div class="pit-pressure-grid" aria-label="Target tyre pressures">
+                <div class="pit-tire-toggle-row pit-target-fl">
+                  <span class="pit-tire-wheel-label" aria-hidden="true">FL</span>
+                  <button
+                    id="pit-tire-change-fl"
+                    class="pit-target-tyre pit-tire-toggle"
+                    type="button"
+                    data-wheel="lf"
+                    aria-label="Toggle tire change for FL wheel"
+                    aria-pressed="false"
+                  ><span>TIRE CHANGE</span></button>
+                </div>
+                <div class="pit-tire-toggle-row pit-tire-toggle-row-right pit-target-fr">
+                  <button
+                    id="pit-tire-change-fr"
+                    class="pit-target-tyre pit-tire-toggle"
+                    type="button"
+                    data-wheel="rf"
+                    aria-label="Toggle tire change for FR wheel"
+                    aria-pressed="false"
+                  ><span>TIRE CHANGE</span></button>
+                  <span class="pit-tire-wheel-label" aria-hidden="true">FR</span>
+                </div>
+                <div class="pit-car-service-row">
+                    <div id="pit-fast-repair-control" class="pit-fast-repair-control">
+                      <button
+                        id="pit-fast-repair-toggle"
+                        class="pit-fast-repair-toggle"
+                        data-pit-fast-repair-toggle
+                        type="button"
+                        aria-label="Toggle fast repair"
+                        aria-pressed="false"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M14.7 6.3a4.6 4.6 0 0 0-5.9 5.9L3.5 17.5a2.1 2.1 0 1 0 3 3l5.3-5.3a4.6 4.6 0 0 0 5.9-5.9l-2.8 2.8-3-3 2.8-2.8Z"></path>
+                        </svg>
+                        <span>Repair</span>
+                      </button>
+                    </div>
+                    <div class="pit-fast-repair-control pit-fast-repair-control-adjacent">
+                      <button
+                        id="pit-fast-repair-toggle-adjacent"
+                        class="pit-fast-repair-toggle"
+                        data-pit-fast-repair-toggle
+                        type="button"
+                        aria-label="Toggle fast repair"
+                        aria-pressed="false"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M14.7 6.3a4.6 4.6 0 0 0-5.9 5.9L3.5 17.5a2.1 2.1 0 1 0 3 3l5.3-5.3a4.6 4.6 0 0 0 5.9-5.9l-2.8 2.8-3-3 2.8-2.8Z"></path>
+                        </svg>
+                        <span>Repair</span>
+                      </button>
+                    </div>
+                    <button
+                      id="pit-car-windscreen-tearoff"
+                      class="pit-target-tyre pit-car-tearoff-toggle"
+                      type="button"
+                      aria-label="Toggle windscreen tear-off"
+                      aria-pressed="true"
+                    ><span>WINDSHIEL TEAROFF</span></button>
+                </div>
+                <div class="pit-car-center">
+                  <div class="pit-car-plan" aria-hidden="true">
+                  <svg class="pit-car-icon pit-car-icon-gtp" data-pit-car-icon="gtp" viewBox="0 0 200 420" focusable="false">
+                    <g transform="rotate(180 100 210)">
+                      <g class="pit-car-wheels">
+                        <path d="M9 283Q10 263 22 252H48Q57 266 57 318T45 392H18Q8 369 9 283Z"></path>
+                        <path d="M191 283Q190 263 178 252H152Q143 266 143 318T155 392H182Q192 369 191 283Z"></path>
+                        <path class="pit-car-wheel-tread" d="M13 286H53M11 302H55M10 318H56M10 334H55M11 350H53M147 286H187M145 302H189M144 318H190M145 334H190M147 350H189"></path>
+                      </g>
+                      <path class="pit-car-wing" d="M18 8H182V34H18ZM21 13H179M21 21H179M21 29H179M22 5V43M178 5V43"></path>
+                      <path class="pit-car-body" d="M25 38 52 42Q70 50 78 75L92 142 96 214Q73 224 62 248L56 269 53 352 43 400H22L17 354 18 224 22 131ZM175 38 148 42Q130 50 122 75L108 142 104 214Q127 224 138 248L144 269 147 352 157 400H178L183 354 182 224 178 131Z"></path>
+                      <path class="pit-car-panel" d="M31 44Q61 52 70 79L83 144 87 205Q66 213 51 238L39 280 32 378M169 44Q139 52 130 79L117 144 113 205Q134 213 149 238L161 280 168 378"></path>
+                      <path class="pit-car-panel" d="M29 48 54 66 65 108 61 175 48 207 28 212ZM171 48 146 66 135 108 139 175 152 207 172 212Z"></path>
+                      <path class="pit-car-detail" d="M29 74H57M27 92H62M25 110H65M23 128H63M171 74H143M173 92H138M175 110H135M177 128H137"></path>
+                      <path class="pit-car-detail" d="M84 48 91 153 94 218M116 48 109 153 106 218M100 35V225"></path>
+                      <path class="pit-car-vent" d="M45 78 60 84 63 130 50 118ZM155 78 140 84 137 130 150 118Z"></path>
+                      <path class="pit-car-detail" d="M55 151 46 184 32 203M145 151 154 184 168 203M42 219 58 230 53 252M158 219 142 230 147 252"></path>
+                      <path class="pit-car-glass" d="M100 218Q68 218 59 249L55 291Q58 331 100 339 142 331 145 291L141 249Q132 218 100 218Z"></path>
+                      <path class="pit-car-panel" d="M100 229Q75 229 67 253L64 287Q68 318 100 326 132 318 136 287L133 253Q125 229 100 229Z"></path>
+                      <path class="pit-car-glass" d="M100 239Q80 239 73 258L71 283Q75 306 100 312 125 306 129 283L127 258Q120 239 100 239Z"></path>
+                      <path class="pit-car-detail" d="M63 286Q100 302 137 286M58 310Q100 350 142 310M100 219V326"></path>
+                      <path class="pit-car-mirror" d="M57 254 44 248 34 256 37 270 53 272M143 254 156 248 166 256 163 270 147 272"></path>
+                      <path class="pit-car-panel" d="M57 329 79 345 75 392 100 414 125 392 121 345 143 329 139 400 119 410H81L61 400Z"></path>
+                      <path class="pit-car-light" d="M25 383 49 369 45 402 23 410ZM175 383 151 369 155 402 177 410Z"></path>
+                      <path class="pit-car-detail" d="M79 345 87 370V409M121 345 113 370V409M100 328V414M63 350 51 366M137 350 149 366"></path>
+                      <path class="pit-car-vent" d="M63 342 78 350 70 373 55 365ZM137 342 122 350 130 373 145 365Z"></path>
+                    </g>
+                  </svg>
+                  <svg class="pit-car-icon pit-car-icon-gt3" data-pit-car-icon="gt3" viewBox="0 0 180 360" focusable="false" hidden>
+                    <g class="pit-car-wheels">
+                      <path d="M20 48Q12 72 13 116L23 128 30 48Z"></path>
+                      <path d="M160 48Q168 72 167 116L157 128 150 48Z"></path>
+                      <path d="M19 212 15 292 28 310 34 219Z"></path>
+                      <path d="M161 212 165 292 152 310 146 219Z"></path>
+                      <path class="pit-car-wheel-tread" d="M16 61H25M14 73H24M13 85H23M13 97H22M155 61H164M156 73H166M157 85H167M158 97H167"></path>
+                    </g>
+                    <path class="pit-car-body" d="M90 7C55 7 34 15 24 38 13 64 14 109 21 136L17 174 20 225 23 286C25 318 43 335 67 341H113C137 335 155 318 157 286L160 225 163 174 159 136C166 109 167 64 156 38 146 15 125 7 90 7Z"></path>
+                    <path class="pit-car-panel" d="M32 38Q90 13 148 38L153 116Q127 103 90 102T27 116Z"></path>
+                    <path class="pit-car-detail" d="M41 38Q90 20 139 38M53 26 48 62M127 26 132 62M68 20 65 54M112 20 115 54"></path>
+                    <path class="pit-car-light" d="M31 55 61 43 55 84 29 99ZM149 55 119 43 125 84 151 99Z"></path>
+                    <path class="pit-car-vent" d="M72 37 68 72 85 68V35ZM108 37 112 72 95 68V35ZM70 78Q90 70 110 78L108 96Q90 91 72 96Z"></path>
+                    <path class="pit-car-glass" d="M28 122Q90 91 152 122L143 159Q90 176 37 159Z"></path>
+                    <path class="pit-car-detail" d="M37 159Q90 176 143 159L139 181M41 181Q90 193 139 181"></path>
+                    <path class="pit-car-panel" d="M41 181 49 267Q90 279 131 267L139 181Q90 193 41 181Z"></path>
+                    <path class="pit-car-detail" d="M49 184 52 257M131 184 128 257M90 188V270M57 200Q69 194 80 200V242Q68 248 57 242Z"></path>
+                    <circle class="pit-car-detail" cx="116" cy="218" r="2.5"></circle>
+                    <circle class="pit-car-detail" cx="116" cy="232" r="2.5"></circle>
+                    <circle class="pit-car-detail" cx="116" cy="246" r="2.5"></circle>
+                    <path class="pit-car-detail" d="M34 171 25 194 31 215 43 205M146 171 155 194 149 215 137 205M31 234 43 246 37 278M149 234 137 246 143 278"></path>
+                    <path class="pit-car-glass" d="M50 270Q90 259 130 270L126 313Q90 326 54 313Z"></path>
+                    <path class="pit-car-detail" d="M55 272 125 312M125 272 55 312"></path>
+                    <path class="pit-car-panel" d="M48 317Q90 329 132 317L141 333Q90 346 39 333Z"></path>
+                    <path class="pit-car-mirror" d="M20 137 8 132 2 143 20 149M160 137 172 132 178 143 160 149"></path>
+                    <path class="pit-car-bumper" d="M20 331H160V356H20Z"></path>
+                    <path class="pit-car-detail" d="M29 333V347M151 333V347M51 341V354M129 341V354"></path>
+                  </svg>
+                  <svg class="pit-car-icon pit-car-icon-amg" data-pit-car-icon="amg" viewBox="0 0 200 420" focusable="false" hidden>
+                    <g transform="matrix(0 1 -1 0 200 0)">
+                      <path class="pit-car-amg-body" d="M23 100C23 61 46 36 82 28L139 18 235 22 315 31Q345 39 357 62L363 100 357 138Q345 161 315 169L235 178 139 182 82 172C46 164 23 139 23 100Z"></path>
+                      <path class="pit-car-panel" d="M29 100Q30 61 67 47L117 37 155 54 149 146 117 163 67 153Q30 139 29 100Z"></path>
+                      <path class="pit-car-detail" d="M39 70Q66 51 111 48M39 130Q66 149 111 152M65 44 77 68M65 156 77 132M92 38 98 63M92 162 98 137"></path>
+                      <path class="pit-car-light" d="M46 66 78 55 70 77 43 84ZM46 134 78 145 70 123 43 116Z"></path>
+                      <path class="pit-car-vent" d="M89 52 124 47 119 64 91 68ZM89 148 124 153 119 136 91 132Z"></path>
+                      <path class="pit-car-glass" d="M151 55 219 48 242 73 233 127 219 152 151 145Q162 100 151 55Z"></path>
+                      <path class="pit-car-panel" d="M240 72 313 60 337 76 342 100 337 124 313 140 240 128 249 100Z"></path>
+                      <path class="pit-car-glass" d="M258 76 311 70 328 82 333 100 328 118 311 130 258 124 266 100Z"></path>
+                      <path class="pit-car-detail" d="M165 58 178 144M201 52 213 148M242 73 226 62M242 127 226 138M248 100H342M280 68V132M306 64V136"></path>
+                      <path class="pit-car-detail" d="M159 45 146 29 121 27M159 155 146 171 121 173M321 51 348 58 362 81M321 149 348 142 362 119"></path>
+                      <path class="pit-car-mirror" d="M168 48 174 28 184 22 190 28 182 50M168 152 174 172 184 178 190 172 182 150"></path>
+                      <path class="pit-car-wheel-arch" d="M112 29Q145 19 167 36M112 171Q145 181 167 164M276 36Q313 26 337 49M276 164Q313 174 337 151"></path>
+                      <path class="pit-car-detail" d="M131 24 139 46M131 176 139 154M292 31 299 56M292 169 299 144M312 35 318 58M312 165 318 142"></path>
+                      <path class="pit-car-amg-wing" d="M370 22H410V178H370M378 26V174M402 26V174"></path>
+                      <path class="pit-car-detail" d="M350 73 382 57M350 127 382 143M357 91 378 84M357 109 378 116"></path>
+                      <text class="pit-car-amg-mark" x="191" y="105" text-anchor="middle">AMG</text>
+                      <text class="pit-car-amg-mark pit-car-amg-wing-mark" x="391" y="104" text-anchor="middle">AMG</text>
+                    </g>
+                  </svg>
+                  </div>
+                  <div class="pit-fast-repair-control pit-fast-repair-control-bottom">
+                    <button
+                      id="pit-fast-repair-toggle-bottom"
+                      class="pit-fast-repair-toggle"
+                      data-pit-fast-repair-toggle
+                      type="button"
+                      aria-label="Toggle fast repair"
+                      aria-pressed="false"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M14.7 6.3a4.6 4.6 0 0 0-5.9 5.9L3.5 17.5a2.1 2.1 0 1 0 3 3l5.3-5.3a4.6 4.6 0 0 0 5.9-5.9l-2.8 2.8-3-3 2.8-2.8Z"></path>
+                      </svg>
+                      <span>Repair</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="pit-tire-toggle-row pit-target-rl">
+                  <span class="pit-tire-wheel-label" aria-hidden="true">RL</span>
+                  <button
+                    id="pit-tire-change-rl"
+                    class="pit-target-tyre pit-tire-toggle"
+                    type="button"
+                    data-wheel="lr"
+                    aria-label="Toggle tire change for RL wheel"
+                    aria-pressed="false"
+                  ><span>TIRE CHANGE</span></button>
+                </div>
+                <div class="pit-tire-toggle-row pit-tire-toggle-row-right pit-target-rr">
+                  <button
+                    id="pit-tire-change-rr"
+                    class="pit-target-tyre pit-tire-toggle"
+                    type="button"
+                    data-wheel="rr"
+                    aria-label="Toggle tire change for RR wheel"
+                    aria-pressed="false"
+                  ><span>TIRE CHANGE</span></button>
+                  <span class="pit-tire-wheel-label" aria-hidden="true">RR</span>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </article>
+        <div class="cumulation-stack">
+          <article class="module car-setup-window cumulation-window" aria-label="Cumulation">
+            <div class="module-head">
+              <p class="section-label">Cumulation</p>
+              <span class="pit-headset-status" role="img" aria-label="Pit radio connected">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M4 13v-2a8 8 0 0 1 16 0v2"></path>
+                  <path d="M6.5 11.5H5.25A2.25 2.25 0 0 0 3 13.75v2.5a2.25 2.25 0 0 0 2.25 2.25H7V12a.5.5 0 0 0-.5-.5Z"></path>
+                  <path d="M17.5 11.5h1.25A2.25 2.25 0 0 1 21 13.75v2.5a2.25 2.25 0 0 1-2.25 2.25H17V12a.5.5 0 0 1 .5-.5Z"></path>
+                  <path d="M17 18.5c-.75 1.35-1.85 2-3.5 2"></path>
+                </svg>
+                <i aria-hidden="true"></i>
+              </span>
+            </div>
+            <div class="car-setup-window-content cumulation-grid" aria-label="Cumulation panels">
+              <section class="cumulation-panel" aria-label="Left cumulation panel"></section>
+              <section class="cumulation-panel" aria-label="Right cumulation panel"></section>
+            </div>
+          </article>
+          <article class="module car-setup-window cumulation-window" aria-label="Fuel calculation">
+            <div class="module-head">
+              <p class="section-label">FUEL CAL</p>
+            </div>
+            <div class="car-setup-window-content fuel-cal-window-content">
+              <input id="pit-fast-repair" type="checkbox" hidden>
+              <input id="pit-windscreen-tearoff" type="checkbox" checked hidden>
+              <footer class="pit-plan-footer">
+                <div>
+                  <span>Total pit-lane loss</span>
+                  <strong>52.8 s</strong>
+                  <small>21.3 s transit + 31.5 s stationary</small>
+                </div>
+                <button type="button">Apply pit setup</button>
+              </footer>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
   </main>
+
+  <div id="unit-settings-modal" class="unit-modal" role="dialog" aria-modal="true" aria-labelledby="unit-modal-title" aria-hidden="true">
+    <div class="unit-modal-backdrop" data-unit-modal-close></div>
+    <section class="unit-modal-panel" tabindex="-1">
+      <header class="unit-modal-header">
+        <div>
+          <span class="unit-modal-kicker">Dashboard settings</span>
+          <h2 id="unit-modal-title">Preferred units</h2>
+        </div>
+        <button class="unit-modal-close" type="button" aria-label="Close unit settings" data-unit-modal-close>&times;</button>
+      </header>
+
+      <div class="unit-modal-presets" aria-label="Unit presets">
+        <span>Quick preset</span>
+        <div>
+          <button type="button" data-unit-preset="metric">Metric</button>
+          <button type="button" data-unit-preset="us">US</button>
+        </div>
+      </div>
+
+      <div class="unit-preference-list">
+        <label class="unit-preference-row" for="speed-unit-select">
+          <span class="unit-preference-copy"><strong>Speed unit</strong><small>Vehicle speed and wind speed</small></span>
+          <select id="speed-unit-select" data-unit-preference="speed">
+            <option value="kmh">km/h</option>
+            <option value="mph">mph</option>
+          </select>
+        </label>
+        <label class="unit-preference-row" for="temperature-unit-select">
+          <span class="unit-preference-copy"><strong>Temperature unit</strong><small>Tyres, brakes, engine and weather</small></span>
+          <select id="temperature-unit-select" data-unit-preference="temperature">
+            <option value="celsius">Celsius (&deg;C)</option>
+            <option value="fahrenheit">Fahrenheit (&deg;F)</option>
+          </select>
+        </label>
+        <label class="unit-preference-row" for="pressure-unit-select">
+          <span class="unit-preference-copy"><strong>Pressure unit</strong><small>Live tyre pressure</small></span>
+          <select id="pressure-unit-select" data-unit-preference="pressure">
+            <option value="bar">bar</option>
+            <option value="kpa">kPa</option>
+            <option value="psi">psi</option>
+          </select>
+        </label>
+        <label class="unit-preference-row" for="fuel-unit-select">
+          <span class="unit-preference-copy"><strong>Fuel unit</strong><small>Current fuel volume</small></span>
+          <select id="fuel-unit-select" data-unit-preference="fuel">
+            <option value="liters">Liters</option>
+            <option value="us-gallons">US gallons</option>
+            <option value="imperial-gallons">Imperial gallons</option>
+          </select>
+        </label>
+      </div>
+
+      <footer class="unit-modal-footer">
+        <span>Changes are saved automatically</span>
+        <div>
+          <button id="unit-settings-reset" class="unit-modal-reset" type="button">Reset defaults</button>
+          <button class="unit-modal-done" type="button" data-unit-modal-close>Done</button>
+        </div>
+      </footer>
+    </section>
+  </div>
 
   <script src="/car-brand-logos.js?v=20260714"></script>
   <script src="/car-brand-logos-extra.js?v=20260714"></script>
-  <script src="/app.js?v=20260716-ingame-time"></script>
+  <script src="/app.js?v=20260717-hide-empty-repair"></script>
 </body>
 </html>

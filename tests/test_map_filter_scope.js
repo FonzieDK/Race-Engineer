@@ -20,8 +20,8 @@ function getFunctionSource(name) {
   return script.slice(start, end + 1);
 }
 
-test("map class filter only dims cars on the main track map", () => {
+test("map class filter dims cars on the track and pit-exit maps", () => {
   assert.match(getFunctionSource("renderTrackMap"), /isMapCarDimmed\(car, standingsByCarIdx\)/);
-  assert.doesNotMatch(getFunctionSource("renderPitExitMap"), /isMapCarDimmed\(/);
+  assert.match(getFunctionSource("renderPitExitMap"), /isMapCarDimmed\(car, standingsByCarIdx\)/);
   assert.doesNotMatch(getFunctionSource("renderFollowMap"), /isMapCarDimmed\(/);
 });

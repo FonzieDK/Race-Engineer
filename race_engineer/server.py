@@ -6,6 +6,8 @@ Serves telemetry on localhost for a browser or Electron shell.
 
 from __future__ import annotations
 
+import atexit
+import ctypes
 import json
 import re
 import time
@@ -24,7 +26,14 @@ from race_engineer.events.replay_scanner import ReplayEventScanner
 from race_engineer.events.results import IracingResultsImporter
 from race_engineer.events.store import EventStore
 from race_engineer.events.tracker import RaceEventTracker
-from race_engineer.paths import CONFIG_PATH, DATABASE_PATH, RESOURCE_DIR, TRACKS_PATH, WEB_DIR
+from race_engineer.paths import (
+    CONFIG_PATH,
+    DATABASE_PATH,
+    RESOURCE_DIR,
+    TIRE_ESTIMATES_PATH,
+    TRACKS_PATH,
+    WEB_DIR,
+)
 from race_engineer.telemetry import TelemetryReader
 
 
@@ -200,6 +209,35 @@ subscribers: list[Queue[str]] = []
 subscribers_lock = Lock()
 telemetry_reader: TelemetryReader | None = None
 config_lock = Lock()
+high_resolution_timer_enabled = False
+
+
+def enable_high_resolution_timer() -> bool:
+    """Request 1 ms Windows timer granularity for the telemetry scheduler."""
+    global high_resolution_timer_enabled
+    if high_resolution_timer_enabled:
+        return True
+    try:
+        if ctypes.windll.winmm.timeBeginPeriod(1) != 0:
+            return False
+    except (AttributeError, OSError):
+        return False
+    high_resolution_timer_enabled = True
+    return True
+
+
+def disable_high_resolution_timer() -> None:
+    global high_resolution_timer_enabled
+    if not high_resolution_timer_enabled:
+        return
+    try:
+        ctypes.windll.winmm.timeEndPeriod(1)
+    except (AttributeError, OSError):
+        pass
+    high_resolution_timer_enabled = False
+
+
+atexit.register(disable_high_resolution_timer)
 
 
 def load_config() -> dict[str, Any]:
@@ -213,6 +251,16 @@ runtime_config = load_config()
 def refresh_interval_seconds() -> float:
     with config_lock:
         return float(runtime_config.get("refresh_rate", 1 / 30))
+
+
+def refresh_wait_seconds(
+    iteration_started_at: float,
+    interval_seconds: float,
+    now: float | None = None,
+) -> float:
+    """Return only the unused part of a telemetry refresh period."""
+    finished_at = time.perf_counter() if now is None else now
+    return max(0.0, interval_seconds - (finished_at - iteration_started_at))
 
 
 def set_refresh_rate(hz: int) -> None:
@@ -292,6 +340,7 @@ def tire_wear_alert(tire_wear: dict[str, Any], threshold: float) -> str | None:
 
 def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
     global telemetry_reader
+    enable_high_resolution_timer()
     try:
         tire_wear_threshold = float(config.get("tire_wear_warning", 0.8))
     except (TypeError, ValueError):
@@ -303,6 +352,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
             pit_loss_seconds=config.get("pit_loss_seconds", 25.0),
             fuel_fill_rate_lps=config.get("fuel_fill_rate_lps", 2.5),
             tire_change_seconds=config.get("tire_change_seconds", 20.0),
+            tire_estimate_path=TIRE_ESTIMATES_PATH,
         )
         telemetry_reader = telemetry
         with state_lock:
@@ -335,6 +385,7 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
 
         try:
             while not stop_event.is_set() and telemetry.is_connected():
+                iteration_started_at = time.perf_counter()
                 try:
                     data = telemetry.get_telemetry_data()
                     if data:
@@ -373,7 +424,11 @@ def telemetry_loop(stop_event: Event, config: dict[str, Any]) -> None:
                         state.status = "Telemetry error"
                     publish_snapshot()
 
-                stop_event.wait(refresh_interval_seconds())
+                interval_seconds = refresh_interval_seconds()
+                stop_event.wait(refresh_wait_seconds(
+                    iteration_started_at,
+                    interval_seconds,
+                ))
         except KeyboardInterrupt:
             break
         finally:
@@ -475,6 +530,14 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
 
         if request_path == "/api/refresh-rate":
             self._set_refresh_rate()
+            return
+
+        if request_path == "/api/pit/tire-change":
+            self._set_pit_tire_change()
+            return
+
+        if request_path == "/api/pit/windscreen-tearoff":
+            self._set_pit_windscreen_tearoff()
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
@@ -620,6 +683,44 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             publish_snapshot()
             self._send_json({"ok": True, "hz": hz})
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._send_json({"ok": False, "error": str(exc)})
+
+    def _set_pit_tire_change(self) -> None:
+        try:
+            payload = self._read_json_body()
+            wheel = str(payload.get("wheel") or "").strip().lower()
+            enabled = payload.get("enabled")
+            if wheel not in {"lf", "rf", "lr", "rr", "all"}:
+                raise ValueError("Only the FL, FR, RL, RR and all-tires controls are available")
+            if not isinstance(enabled, bool):
+                raise ValueError("enabled must be a boolean")
+            if telemetry_reader is None or not telemetry_reader.is_connected():
+                raise ValueError("iRacing telemetry is not connected")
+
+            sent = telemetry_reader.set_tire_change(wheel, enabled)
+            if not sent:
+                raise ValueError("iRacing did not accept the pit command")
+            self._send_json({"ok": True, "wheel": wheel, "enabled": enabled})
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._send_json({"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self._send_json({"ok": False, "error": str(exc)})
+
+    def _set_pit_windscreen_tearoff(self) -> None:
+        try:
+            enabled = self._read_json_body().get("enabled")
+            if not isinstance(enabled, bool):
+                raise ValueError("enabled must be a boolean")
+            if telemetry_reader is None or not telemetry_reader.is_connected():
+                raise ValueError("iRacing telemetry is not connected")
+
+            sent = telemetry_reader.set_windscreen_tearoff(enabled)
+            if not sent:
+                raise ValueError("iRacing did not accept the pit command")
+            self._send_json({"ok": True, "enabled": enabled})
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._send_json({"ok": False, "error": str(exc)})
+        except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)})
 
     def _stream_events(self) -> None:

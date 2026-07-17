@@ -1,6 +1,8 @@
 import irsdk
+import json
 import math
 import time
+from pathlib import Path
 from threading import Lock, Timer
 from uuid import uuid4
 
@@ -12,6 +14,7 @@ class TelemetryReader:
         pit_loss_seconds=25.0,
         fuel_fill_rate_lps=2.5,
         tire_change_seconds=20.0,
+        tire_estimate_path=None,
     ):
         self.ir = irsdk.IRSDK()
         self.connected = False
@@ -24,7 +27,9 @@ class TelemetryReader:
         self._replay_start_timer = None
         self._replay_timer = None
         self._replay_timer_lock = Lock()
+        self._pit_command_lock = Lock()
         self._event_replay_state = None
+        self._latest_tick_count = None
         self._heavy_snapshot = None
         self._heavy_snapshot_at = 0.0
         self._heavy_snapshot_key = None
@@ -43,6 +48,142 @@ class TelemetryReader:
             self._tire_change_seconds = max(0.0, float(tire_change_seconds))
         except (TypeError, ValueError):
             self._tire_change_seconds = 20.0
+        self._tire_estimate_path = Path(tire_estimate_path) if tire_estimate_path else None
+        self._learned_tire_estimates = self._load_tire_estimates()
+        self._active_tire_service = None
+        self._pending_tire_selection = []
+        self._current_tire_estimates = self._default_tire_estimates()
+
+    def _default_tire_estimates(self):
+        return {
+            count: round(self._tire_change_seconds * count / 4, 3)
+            for count in range(5)
+        }
+
+    def _load_tire_estimates(self):
+        if self._tire_estimate_path is None:
+            return {}
+        try:
+            with self._tire_estimate_path.open("r", encoding="utf-8") as estimate_file:
+                data = json.load(estimate_file)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    def _save_tire_estimates(self):
+        if self._tire_estimate_path is None:
+            return
+        try:
+            self._tire_estimate_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = self._tire_estimate_path.with_suffix(".tmp")
+            with temporary_path.open("w", encoding="utf-8") as estimate_file:
+                json.dump(self._learned_tire_estimates, estimate_file, indent=2, sort_keys=True)
+                estimate_file.write("\n")
+            temporary_path.replace(self._tire_estimate_path)
+        except OSError:
+            pass
+
+    @staticmethod
+    def _tire_estimate_car_key(car_name):
+        return str(car_name or "unknown-car").strip().lower() or "unknown-car"
+
+    def _estimates_for_car(self, car_name):
+        estimates = self._default_tire_estimates()
+        car_history = self._learned_tire_estimates.get(
+            self._tire_estimate_car_key(car_name),
+            {},
+        )
+        for count in range(1, 5):
+            measurement = car_history.get(str(count))
+            if isinstance(measurement, dict):
+                seconds = measurement.get("seconds")
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    estimates[count] = round(float(seconds), 3)
+        return estimates
+
+    def _record_tire_service_measurement(self, car_name, tire_count, seconds):
+        if tire_count not in {1, 2, 3, 4} or not 0.5 <= seconds <= 120.0:
+            return
+        car_key = self._tire_estimate_car_key(car_name)
+        car_history = self._learned_tire_estimates.setdefault(car_key, {})
+        previous = car_history.get(str(tire_count), {})
+        samples = int(previous.get("samples", 0)) if isinstance(previous, dict) else 0
+        previous_seconds = previous.get("seconds") if isinstance(previous, dict) else None
+        average = (
+            (float(previous_seconds) * samples + seconds) / (samples + 1)
+            if isinstance(previous_seconds, (int, float)) and samples > 0
+            else seconds
+        )
+        car_history[str(tire_count)] = {
+            "seconds": round(average, 3),
+            "samples": samples + 1,
+        }
+        self._save_tire_estimates()
+
+    def _update_tire_service_learning(
+        self,
+        car_name,
+        session_time,
+        pitstop_active,
+        pit_service_flags,
+        tire_usage,
+    ):
+        estimates = self._estimates_for_car(car_name)
+        self._current_tire_estimates = estimates
+        if not isinstance(session_time, (int, float)):
+            self._active_tire_service = None
+            return estimates
+
+        service_flags = {
+            "lf": irsdk.PitSvFlags.lf_tire_change,
+            "rf": irsdk.PitSvFlags.rf_tire_change,
+            "lr": irsdk.PitSvFlags.lr_tire_change,
+            "rr": irsdk.PitSvFlags.rr_tire_change,
+        }
+        selected = [
+            wheel for wheel, flag in service_flags.items()
+            if pit_service_flags & flag
+        ]
+        if not pitstop_active and selected:
+            self._pending_tire_selection = selected
+
+        service_selection = selected or self._pending_tire_selection
+        if pitstop_active and self._active_tire_service is None and service_selection:
+            self._active_tire_service = {
+                "car_name": car_name,
+                "started_at": float(session_time),
+                "selected": list(service_selection),
+                "usage": dict(tire_usage),
+                "recorded": False,
+            }
+
+        active = self._active_tire_service
+        if active is not None and float(session_time) < active["started_at"]:
+            self._active_tire_service = None
+            return estimates
+
+        if active is not None and not active["recorded"]:
+            changed = all(
+                isinstance(tire_usage.get(wheel), (int, float))
+                and isinstance(active["usage"].get(wheel), (int, float))
+                and tire_usage[wheel] > active["usage"][wheel]
+                for wheel in active["selected"]
+            )
+            if changed:
+                elapsed = float(session_time) - active["started_at"]
+                self._record_tire_service_measurement(
+                    active["car_name"],
+                    len(active["selected"]),
+                    elapsed,
+                )
+                active["recorded"] = True
+                estimates = self._estimates_for_car(car_name)
+                self._current_tire_estimates = estimates
+
+        if active is not None and not pitstop_active:
+            self._active_tire_service = None
+            self._pending_tire_selection = []
+        return estimates
 
     def connect(self):
         """Attempt to connect to iRacing."""
@@ -60,6 +201,83 @@ class TelemetryReader:
             self.ir.shutdown()
             self.connected = False
             print("Disconnected from iRacing.")
+
+    def set_tire_change(self, wheel, enabled):
+        """Select or clear one wheel for the next iRacing pit stop.
+
+        iRacing can select one tire directly, but its clear-tires broadcast
+        clears every wheel. Preserve and restore the other selections when a
+        single wheel is disabled.
+        """
+        wheel = str(wheel or "").strip().lower()
+        commands = {
+            "lf": irsdk.PitCommandMode.lf,
+            "rf": irsdk.PitCommandMode.rf,
+            "lr": irsdk.PitCommandMode.lr,
+            "rr": irsdk.PitCommandMode.rr,
+        }
+        selection_vars = {
+            "lf": "dpLFTireChange",
+            "rf": "dpRFTireChange",
+            "lr": "dpLRTireChange",
+            "rr": "dpRRTireChange",
+        }
+        service_flags = {
+            "lf": irsdk.PitSvFlags.lf_tire_change,
+            "rf": irsdk.PitSvFlags.rf_tire_change,
+            "lr": irsdk.PitSvFlags.lr_tire_change,
+            "rr": irsdk.PitSvFlags.rr_tire_change,
+        }
+        if wheel not in {*commands, "all"}:
+            raise ValueError("Unsupported tire position")
+        if not isinstance(enabled, bool):
+            raise ValueError("enabled must be a boolean")
+        if not self.is_connected():
+            return False
+
+        with self._pit_command_lock:
+            if wheel == "all":
+                if not enabled:
+                    return bool(self.ir.pit_command(irsdk.PitCommandMode.clear_tires, 0))
+                sent = True
+                for position in ("lf", "rf", "lr", "rr"):
+                    sent = bool(self.ir.pit_command(commands[position], 0)) and sent
+                return sent
+
+            if enabled:
+                return bool(self.ir.pit_command(commands[wheel], 0))
+
+            current_flags = self._get_var("PitSvFlags", 0)
+            current_flags = current_flags if isinstance(current_flags, int) else 0
+            selected_others = []
+            for position, variable_name in selection_vars.items():
+                if position == wheel:
+                    continue
+                selected = self._get_var(variable_name)
+                if selected is None:
+                    selected = bool(current_flags & service_flags[position])
+                if bool(selected):
+                    selected_others.append(position)
+
+            sent = bool(self.ir.pit_command(irsdk.PitCommandMode.clear_tires, 0))
+            for position in selected_others:
+                sent = bool(self.ir.pit_command(commands[position], 0)) and sent
+            return sent
+
+    def set_windscreen_tearoff(self, enabled):
+        """Select or clear the windscreen tear-off for the next pit stop."""
+        if not isinstance(enabled, bool):
+            raise ValueError("enabled must be a boolean")
+        if not self.is_connected():
+            return False
+
+        command = (
+            irsdk.PitCommandMode.ws
+            if enabled
+            else irsdk.PitCommandMode.clear_ws
+        )
+        with self._pit_command_lock:
+            return bool(self.ir.pit_command(command, 0))
 
     def _get_session_key(
         self,
@@ -276,12 +494,38 @@ class TelemetryReader:
         except Exception:
             return default
 
+    def _freeze_latest_var_buffer_without_wait(self):
+        """Freeze the newest completed SDK buffer without waiting for another tick.
+
+        The server loop already controls the sampling cadence. irsdk's public
+        freeze helper waits for the next data event first, which adds a full
+        simulator tick to every snapshot.
+        """
+        try:
+            self.ir.unfreeze_var_buffer_latest()
+            buffers = self.ir._header.var_buf
+            latest = max(buffers, key=lambda buffer: buffer.tick_count)
+            latest.freeze()
+            self._latest_tick_count = latest.tick_count
+            # IRSDK reads variables through this frozen-buffer reference.
+            setattr(self.ir, "_IRSDK__var_buffer_latest", latest)
+        except (AttributeError, TypeError, ValueError):
+            self.ir.freeze_var_buffer_latest()
+
     @staticmethod
     def _humidity_percent(value):
         """Convert iRacing's 0-1 relative-humidity ratio to percent."""
         if not isinstance(value, (int, float)) or not math.isfinite(value):
             return None
         return value * 100.0 if 0.0 <= value <= 1.0 else value
+
+    @staticmethod
+    def _precipitation_percent(value):
+        """Convert iRacing's percentage ratio to a clamped display percent."""
+        if not isinstance(value, (int, float)) or not math.isfinite(value):
+            return None
+        percent = value * 100.0 if 0.0 <= value <= 1.0 else value
+        return max(0.0, min(100.0, percent))
 
     @staticmethod
     def _wind_direction_degrees(value):
@@ -1032,7 +1276,11 @@ class TelemetryReader:
 
         for driver in drivers:
             car_idx = driver.get("CarIdx")
-            if car_idx is None:
+            if (
+                car_idx is None
+                or driver.get("IsSpectator") == 1
+                or driver.get("CarIsPaceCar") == 1
+            ):
                 continue
 
             progress = self._clamp_progress(self._array_value(lap_dist_pct, car_idx))
@@ -1081,7 +1329,14 @@ class TelemetryReader:
             | irsdk.PitSvFlags.rr_tire_change
         )
         tire_count = (flags & tire_mask).bit_count() if is_player_car else 0
-        tire_seconds = self._tire_change_seconds if tire_count else 0.0
+        tire_seconds = getattr(
+            self,
+            "_current_tire_estimates",
+            self._default_tire_estimates(),
+        ).get(
+            tire_count,
+            self._tire_change_seconds * tire_count / 4,
+        ) if tire_count else 0.0
         # iRacing normally performs fuel and tires concurrently; the longest
         # selected operation determines stationary service time.
         service_seconds = max(fuel_seconds, tire_seconds)
@@ -1238,7 +1493,7 @@ class TelemetryReader:
         if not self.connected:
             return None
 
-        self.ir.freeze_var_buffer_latest()
+        self._freeze_latest_var_buffer_without_wait()
 
         try:
             cam_car_idx = self._get_var("CamCarIdx")
@@ -1266,6 +1521,10 @@ class TelemetryReader:
             focus_gap_values = self._get_var("CarIdxF2Time", [])
             focus_tire_compound_values = self._get_var("CarIdxTireCompound", [])
             focus_fast_repairs_values = self._get_var("CarIdxFastRepairsUsed", [])
+            player_fast_repairs_used = self._array_value(
+                focus_fast_repairs_values,
+                player_car_idx,
+            )
             session_time = self._get_var("SessionTime")
             session_time_of_day = self._get_var("SessionTimeOfDay")
             replay_session_time = self._get_var("ReplaySessionTime")
@@ -1339,6 +1598,7 @@ class TelemetryReader:
             skies = self._get_var("Skies")
             weather_declared_wet = self._get_var("WeatherDeclaredWet")
             humidity = self._humidity_percent(self._get_var("RelativeHumidity"))
+            precipitation = self._precipitation_percent(self._get_var("Precipitation"))
             # The iRacing SDK exposes wind velocity as WindVel (m/s) and wind
             # direction as WindDir (radians).
             wind_speed = self._get_var("WindVel")
@@ -1352,6 +1612,15 @@ class TelemetryReader:
             weekend_info = self.ir["WeekendInfo"] or {}
             if not isinstance(weekend_info, dict):
                 weekend_info = {}
+            weekend_options = weekend_info.get("WeekendOptions") or {}
+            if not isinstance(weekend_options, dict):
+                weekend_options = {}
+            weather_type = (
+                weekend_info.get("TrackWeatherType")
+                or weekend_options.get("WeatherType")
+                or weather_type
+            )
+            weather_date = weekend_options.get("Date") or weekend_info.get("Date")
             session_id = weekend_info.get("SessionID")
             subsession_id = weekend_info.get("SubSessionID")
             session_num = self._get_var("SessionNum", current_session.get("SessionNum"))
@@ -1399,6 +1668,22 @@ class TelemetryReader:
                 focus_car_idx,
                 on_pit_road,
             )
+            pit_service_flags = self._get_var("PitSvFlags", 0)
+            pit_service_flags = pit_service_flags if isinstance(pit_service_flags, int) else 0
+            player_car_name = player_driver.get("CarScreenName", "Unknown car")
+            tire_usage = {
+                "lf": self._get_var("LFTiresUsed"),
+                "rf": self._get_var("RFTiresUsed"),
+                "lr": self._get_var("LRTiresUsed"),
+                "rr": self._get_var("RRTiresUsed"),
+            }
+            tire_change_estimates = self._update_tire_service_learning(
+                player_car_name,
+                session_time,
+                bool(self._get_var("PitstopActive", False)),
+                pit_service_flags,
+                tire_usage,
+            )
             now = time.monotonic()
             heavy_snapshot_key = (session_key, focus_car_idx, race_started)
             if (
@@ -1431,7 +1716,7 @@ class TelemetryReader:
                         focus_car_idx,
                         self._estimate_next_pit_loss(
                             is_player_car,
-                            self._get_var("PitSvFlags", 0),
+                            pit_service_flags,
                             self._get_var("PitSvFuel", 0.0),
                         ),
                         driver_info.get("DriverCarEstLapTime"),
@@ -1441,9 +1726,11 @@ class TelemetryReader:
                 self._heavy_snapshot_key = heavy_snapshot_key
 
             data = {
+                "telemetry_tick": self._latest_tick_count,
                 "focus_car_idx": focus_car_idx,
                 "player_car_idx": player_car_idx,
                 "is_player_car": is_player_car,
+                "player_car_name": player_car_name,
                 "player_class_name": player_class_name,
                 "player_is_gtp": player_is_gtp,
                 "session_key": session_key,
@@ -1475,6 +1762,8 @@ class TelemetryReader:
                 "focus_gap": self._array_value(focus_gap_values, focus_car_idx),
                 "tire_compound": self._array_value(focus_tire_compound_values, focus_car_idx),
                 "fast_repairs_used": self._array_value(focus_fast_repairs_values, focus_car_idx),
+                "player_fast_repairs_used": player_fast_repairs_used,
+                "fast_repairs_limit": weekend_options.get("FastRepairsLimit"),
                 "fuel_level": fuel_level,
                 "player_fuel_level": player_fuel_level,
                 "player_fuel_use_per_hour": player_fuel_use_per_hour,
@@ -1487,12 +1776,14 @@ class TelemetryReader:
                     "air_temp": air_temp,
                     "track_temp": track_temp,
                     "humidity": humidity,
+                    "precipitation": precipitation,
                     "wind_speed": wind_speed,
                     "wind_direction": wind_direction,
                     "track_wetness": track_wetness,
                     "skies": skies,
                     "weather_declared_wet": weather_declared_wet,
                     "weather_type": weather_type,
+                    "date": weather_date,
                     "rain_state": rain_state,
                 },
                 "track_surface_code": track_surface_code,
@@ -1510,6 +1801,7 @@ class TelemetryReader:
                 "brake_temperature": {"lf": None, "rf": None, "lr": None, "rr": None},
                 "tire_pressure": {"lf": None, "rf": None, "lr": None, "rr": None},
                 "battery_voltage": None,
+                "battery_soc": None,
                 "engine_temperature": None,
                 "session_time": session_time,
                 "session_time_of_day": session_time_of_day,
@@ -1534,6 +1826,22 @@ class TelemetryReader:
                 "standings": self._heavy_snapshot["standings"],
                 "track_map": live_track_map,
                 "pit_exit_prediction": self._heavy_snapshot["pit_exit_prediction"],
+                "pit_tire_changes": {
+                    "lf": bool(pit_service_flags & irsdk.PitSvFlags.lf_tire_change),
+                    "rf": bool(pit_service_flags & irsdk.PitSvFlags.rf_tire_change),
+                    "lr": bool(pit_service_flags & irsdk.PitSvFlags.lr_tire_change),
+                    "rr": bool(pit_service_flags & irsdk.PitSvFlags.rr_tire_change),
+                },
+                "pit_windscreen_tearoff": bool(
+                    pit_service_flags & irsdk.PitSvFlags.windshield_tearoff
+                ),
+                "tire_change_estimates": {
+                    str(count): seconds
+                    for count, seconds in tire_change_estimates.items()
+                },
+                "tire_change_estimate_source": "learned" if self._learned_tire_estimates.get(
+                    self._tire_estimate_car_key(player_car_name)
+                ) else "default",
             }
 
             # These scalar SDK channels always describe the player's car,
@@ -1564,6 +1872,7 @@ class TelemetryReader:
                 "rr": self._get_var("RRpressure"),
             }
             data["battery_voltage"] = self._get_var("Voltage")
+            data["battery_soc"] = self._get_var("EnergyERSBatteryPct")
             data["engine_temperature"] = self._get_var("WaterTemp")
             if data["engine_temperature"] is None:
                 data["engine_temperature"] = self._get_var("OilTemp")

@@ -36,11 +36,6 @@ test("pit exit mini map reuses live track layers and car positions", () => {
   assert.doesNotMatch(styles, /#pit-exit-map\s*\{[^}]*transform:\s*scale/s);
 });
 
-test("map identifies the car currently selected by the iRacing camera", () => {
-  assert.match(html, /id="map-watching"/);
-  assert.match(script, /setText\(mapWatchingEl, telemetry\.driver_name/);
-});
-
 test("official track map is fitted to its rendered content", () => {
   assert.match(script, /function fitTrackMapToContent\(/);
   assert.match(script, /fitTrackMapToContent\(document\.getElementById\("track-map"\)\)/);

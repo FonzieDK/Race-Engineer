@@ -1,14 +1,20 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, screen } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const {
+  loadWindowState,
+  restoreWindowState,
+  saveWindowState,
+} = require("./window-state");
 
 let mainWindow = null;
 let backendProcess = null;
 let isQuitting = false;
 let backendRestartTimer = null;
 let collectorProcess = null;
+let windowStateSaveTimer = null;
 const collectorOnly = process.argv.includes("--collector-only");
 
 function getProjectRoot() {
@@ -262,10 +268,48 @@ function startEventCollector() {
   collectorProcess.unref();
 }
 
+function getWindowStatePath() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function persistWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  if (windowStateSaveTimer) {
+    clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = null;
+  }
+
+  try {
+    const bounds = mainWindow.getNormalBounds();
+    const display = screen.getDisplayMatching(bounds);
+    saveWindowState(getWindowStatePath(), {
+      bounds,
+      displayId: String(display.id),
+      displayWorkArea: display.workArea,
+      isFullScreen: mainWindow.isFullScreen(),
+      isMaximized: mainWindow.isMaximized(),
+    });
+  } catch (error) {
+    appendLog("race-engineer-electron.log", `Unable to save window state: ${error.message}`);
+  }
+}
+
+function scheduleWindowStateSave() {
+  if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+  windowStateSaveTimer = setTimeout(persistWindowState, 250);
+  windowStateSaveTimer.unref?.();
+}
+
 function createWindow() {
+  const savedState = loadWindowState(getWindowStatePath());
+  const restoredState = restoreWindowState(
+    savedState,
+    screen.getAllDisplays(),
+    screen.getPrimaryDisplay(),
+  );
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 960,
+    ...restoredState.bounds,
     minWidth: 1180,
     minHeight: 760,
     autoHideMenuBar: true,
@@ -285,10 +329,25 @@ function createWindow() {
   };
   mainWindow.on("enter-full-screen", sendFullscreenState);
   mainWindow.on("leave-full-screen", sendFullscreenState);
+  mainWindow.on("move", scheduleWindowStateSave);
+  mainWindow.on("resize", scheduleWindowStateSave);
+  mainWindow.on("maximize", scheduleWindowStateSave);
+  mainWindow.on("unmaximize", scheduleWindowStateSave);
+  mainWindow.on("enter-full-screen", persistWindowState);
+  mainWindow.on("leave-full-screen", persistWindowState);
+  mainWindow.on("close", persistWindowState);
+
+  if (restoredState.isMaximized && !restoredState.isFullScreen) {
+    mainWindow.maximize();
+  }
+  if (restoredState.isFullScreen) {
+    mainWindow.setFullScreen(true);
+  }
 
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
 }
 
 async function bootApp() {
