@@ -4,7 +4,8 @@
     "refresh_rate": 0.016666666666666666,
     "ui_refresh_rate_ms": 17,
     "tire_wear_warning": 0.8,
-    "pit_loss_seconds": 25.0,
+    "pit_loss_seconds": 25,
     "fuel_fill_rate_lps": 2.5,
-    "tire_change_seconds": 20.0
+    "tire_change_seconds": 20,
+    "start_collector_with_windows": true
 }

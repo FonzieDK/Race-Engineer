@@ -6,25 +6,25 @@ const test = require("node:test");
 const styles = fs.readFileSync(path.join(__dirname, "..", "web", "app.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "web", "index.html"), "utf8");
 
-test("track map uses one flat workspace instead of nested cards", () => {
+test("track map uses one leaderboard-style bordered panel", () => {
   assert.match(
     styles,
-    /\.trackmap-wrap\s*\{[^}]*gap:\s*0[^}]*padding:\s*0[^}]*background:/s,
+    /\[data-screen-panel="map"\] \.full-screen-module\s*\{[^}]*gap:\s*0[^}]*border:\s*1px solid #314758[^}]*border-radius:\s*7px[^}]*background:\s*#020303/s,
   );
   assert.match(
     styles,
-    /\.trackmap-stage,\s*\.map-weather-card,\s*\.map-aux-card\s*\{[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s,
+    /\.trackmap-stage,\s*\.map-weather-card,\s*\.map-aux-card\s*\{[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*background:\s*#020303[^}]*box-shadow:\s*none/s,
   );
 });
 
-test("flat map sections are separated by single divider lines", () => {
+test("track map content uses flat leaderboard table spacing and dividers", () => {
   assert.match(
     styles,
-    /\.trackmap-stage,\s*\.map-aux-card-primary,\s*\.map-aux-card-secondary\s*\{[^}]*border-right:\s*1px solid/s,
+    /\.trackmap-wrap\s*\{[^}]*gap:\s*0[^}]*background:\s*transparent/s,
   );
   assert.match(
     styles,
-    /\.map-aux-card-primary,\s*\.map-weather-card\s*\{[^}]*border-bottom:\s*1px solid/s,
+    /\.map-side-stack\s*\{[^}]*gap:\s*0[^}]*border:\s*0/s,
   );
 });
 
@@ -48,6 +48,6 @@ test("track map toolbar matches the leaderboard class-filter style", () => {
   );
   assert.match(
     styles,
-    /\.map-toolbar\s*\{[^}]*border-bottom:\s*1px solid #314758[^}]*background:\s*#020303/s,
+    /\.map-toolbar\s*\{[^}]*border:\s*0[^}]*border-bottom:\s*1px solid #314758[^}]*border-radius:\s*0[^}]*background:\s*#020303/s,
   );
 });

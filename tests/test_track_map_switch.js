@@ -20,7 +20,18 @@ test("map switch button cycles all three map views through the large stage", () 
 test("compact map labels follow the map arrangement", () => {
   assert.match(script, /document\.querySelector\("\.pit-exit-head span"\)/);
   assert.match(html, /id="secondary-map-title"/);
-  assert.match(script, /setText\(primaryMapTitleEl, TRACK_MAP_LABELS\[layout\.primary\.id\]\)/);
+  assert.match(html, /id="main-map-title">Track Map<\/span>/);
+  assert.match(script, /refreshTrackMapLabels\(pitExitPrediction\)/);
+  assert.match(script, /getTrackMapLabel\(layout\.main\.id, pitExitPrediction\)/);
   assert.doesNotMatch(html, /pit-exit-traffic-row/);
   assert.doesNotMatch(styles, /\.pit-exit-traffic-row/);
+});
+
+test("the large title follows the selected map type", () => {
+  assert.match(script, /"track-map": "Track Map"/);
+  assert.match(script, /"pit-exit-map": "Pit Exit Prediction"/);
+  assert.match(script, /"follow-map": "Dynamic Map"/);
+  assert.match(script, /stage\?\.querySelector\(":scope > svg\[id\]"\)\?\.id/);
+  assert.match(script, /setText\(title, getTrackMapLabel\(mapId, pitExitPrediction\)\)/);
+  assert.match(script, /refreshTrackMapLabels\(telemetry\.pit_exit_prediction \|\| null\)/);
 });

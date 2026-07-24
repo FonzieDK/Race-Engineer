@@ -14,7 +14,8 @@ test("pit exit card contains the mini map without the position footer", () => {
   assert.doesNotMatch(html, /id="pit-exit-position"/);
   assert.doesNotMatch(html, /id="pit-exit-estimate"/);
   assert.doesNotMatch(script, /GHOST ·/);
-  assert.match(html, /<span>PIT EXIT PREDICTION<\/span>/);
+  assert.match(html, /<span>PIT EXIT PREDICTION -<\/span>/);
+  assert.match(script, /Pit Exit Prediction -.*P\$\{position\}/);
   assert.doesNotMatch(html, /<div class="pit-exit-head">\s*<div>\s*<span>STRATEGY<\/span>/);
   assert.doesNotMatch(html, /class="pit-exit-live"/);
 });

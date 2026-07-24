@@ -26,7 +26,7 @@ function loadProjectTrackPoint() {
   return context.result;
 }
 
-test("increasing iRacing lap distance follows race direction against the SVG winding", () => {
+test("increasing iRacing lap distance follows the circuit arrow against the SVG winding", () => {
   const projectTrackPoint = loadProjectTrackPoint();
   const sampledDistances = [];
   const geometry = {
@@ -65,6 +65,14 @@ test("track projection wraps in race direction after a full lap", () => {
   assert.ok(Math.abs(projectTrackPoint(0.1, geometry).x - 95) < 1e-9);
 });
 
+test("all map views share the arrow-aligned track projection", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "app.js"), "utf8");
+  assert.match(source, /trackProgressDirection:\s*-1/);
+  assert.match(source, /function renderTrackMap[\s\S]*?projectTrackPoint\(progress, geometry\)/);
+  assert.match(source, /function renderPitExitMap[\s\S]*?projectTrackPoint\(progress, geometry\)/);
+  assert.match(source, /function renderFollowMap[\s\S]*?projectTrackPoint\(/);
+});
+
 test("large track map interpolates buffered telemetry samples", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "app.js"), "utf8");
   assert.match(source, /function recordMapTelemetrySample\(/);
@@ -73,6 +81,14 @@ test("large track map interpolates buffered telemetry samples", () => {
   assert.match(source, /function interpolateLapProgress\(/);
   assert.match(source, /const interpolationTime = frameTime - interpolationDelay/);
   assert.match(source, /mapCarSampleHistory\.get\(String\(car\.car_idx\)\)/);
+});
+
+test("large pit exit prediction interpolates live cars and its prediction ghost", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "app.js"), "utf8");
+  assert.match(source, /function renderPitExitMap[\s\S]*?const interpolationTime = frameTime - interpolationDelay/);
+  assert.match(source, /function renderPitExitMap[\s\S]*?mapCarSampleHistory\.get\(String\(car\.car_idx\)\)/);
+  assert.match(source, /function renderPitExitMap[\s\S]*?const ghostOffset =[\s\S]*?focusedProgress \+ ghostOffset/);
+  assert.doesNotMatch(source, /setText\(label, car\.pit_exit[\s\S]*?carsEl\.appendChild\(group\);\s*\}\);/);
 });
 
 test("map interpolation rejects replay seeks and limits extrapolation", () => {

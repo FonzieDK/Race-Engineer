@@ -67,6 +67,8 @@ test("track map rendering is locked to its own 60 Hz animation loop", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "app.js"), "utf8");
 
   assert.match(source, /const MAP_RENDER_INTERVAL_MS = 1000 \/ 60/);
+  assert.match(source, /const AUXILIARY_MAP_RENDER_INTERVAL_MS = MAP_RENDER_INTERVAL_MS/);
+  assert.match(source, /const FOLLOW_MAP_ROAD_INTERVAL_MS = MAP_RENDER_INTERVAL_MS/);
   assert.match(source, /function renderTrackMapAt60Hz\(frameTime\)/);
   assert.match(source, /requestAnimationFrame\(renderTrackMapAt60Hz\)/);
   assert.match(source, /latestMapTelemetry = telemetry/);

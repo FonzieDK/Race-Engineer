@@ -4,9 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Race-Engineer</title>
-  <link rel="stylesheet" href="/app.css?v=20260717-symmetric-repair">
+  <link rel="stylesheet" href="/app.css?v=20260724-empty-test-tab">
 </head>
 <body>
+  <header id="overlay-toolbar" class="overlay-toolbar" aria-label="Overlay controls">
+    <strong id="overlay-title">Race-Engineer Overlay</strong>
+    <span class="overlay-drag-hint">Drag to move</span>
+    <label class="overlay-opacity" for="overlay-opacity">
+      <span>Opacity</span>
+      <input id="overlay-opacity" type="range" min="35" max="100" value="100">
+    </label>
+    <button id="overlay-fullscreen" type="button" aria-pressed="false">Fullscreen</button>
+    <button id="overlay-lock" type="button" aria-pressed="false">Lock position</button>
+    <button id="overlay-close" type="button" aria-label="Close overlay">&times;</button>
+  </header>
   <section id="iracing-pause" class="awaiting-data" aria-live="polite" aria-hidden="false">
     <div class="awaiting-card">
       <div class="awaiting-start-lights" aria-hidden="true">
@@ -29,25 +40,12 @@
         <button class="tab is-active" type="button" data-screen="overview">Overview</button>
         <button class="tab" type="button" data-screen="leaderboard">Leaderboard</button>
         <button class="tab" type="button" data-screen="map">Track Map</button>
-        <button class="tab" type="button" data-screen="test">Weather</button>
         <button class="tab" type="button" data-screen="car-setup-pit">Car Setup - Pit</button>
+        <button class="tab" type="button" data-screen="fuel">Fuel</button>
+        <button class="tab" type="button" data-screen="test">Test/WIP</button>
       </nav>
 
       <div class="meta-strip">
-        <div id="refresh-rate-control-secondary" class="refresh-rate-control">
-          <button id="refresh-rate-toggle-secondary" class="refresh-rate-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <span class="refresh-rate-label">Refresh</span>
-            <span class="refresh-rate-current">
-              <span class="refresh-rate-value">30 Hz</span>
-              <svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg>
-            </span>
-          </button>
-          <div class="refresh-rate-menu" role="listbox" aria-label="Dashboard refresh rate" aria-hidden="true">
-            <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="10">10 Hz</button>
-            <button class="refresh-rate-option is-selected" type="button" role="option" aria-selected="true" data-hz="30">30 Hz</button>
-            <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="60">60 Hz</button>
-          </div>
-        </div>
         <div id="unit-settings" class="unit-settings">
           <button id="unit-settings-toggle" class="unit-settings-toggle fullscreen-toggle" type="button" title="Measurement settings" aria-label="Open measurement settings" aria-haspopup="dialog" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -151,117 +149,172 @@
               <div class="module-head">
                 <p class="section-label">Car Status</p>
               </div>
-              <div class="car-status-graphic">
-                <div class="status-axle status-front-axle">
-                  <div class="wheel-data wheel-data-left">
-                    <b>FL</b>
-                    <span>Pressure</span>
+              <div class="car-status-graphic reference-car-status">
+                <div class="reference-corner reference-corner-fl rear-tyre-card front-tyre-card">
+                  <b>FL</b>
+                  <div class="status-tyre" data-tire="lf" data-state="unavailable">
+                    <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
+                    <strong id="status-tire-lf-temp">--</strong>
+                  </div>
+                  <div class="corner-wear">
+                    <div class="tyre-wear-rail"><i id="status-tire-lf-wear-bar"></i></div>
+                    <em id="status-tire-lf-wear">--</em>
+                  </div>
+                  <aside class="tyre-pressure-gauge" data-pressure-wheel="lf" aria-label="FL tyre pressure">
+                    <span>Pressure</span><small data-pressure-unit>bar</small>
                     <strong id="status-tire-lf-pressure">--</strong>
+                    <div class="tyre-pressure-scale" aria-hidden="true">
+                      <i style="--pressure-level: 0%"></i>
+                      <span class="pressure-tick pressure-tick-high">2.5</span>
+                      <span class="pressure-tick pressure-tick-mid">2.0</span>
+                      <span class="pressure-tick pressure-tick-low">1.5</span>
+                      <span class="pressure-tick pressure-tick-min">1.0</span>
+                    </div>
+                  </aside>
+                </div>
+                <div class="reference-corner reference-corner-fr rear-tyre-card front-tyre-card">
+                  <b>FR</b>
+                  <div class="status-tyre" data-tire="rf" data-state="unavailable">
+                    <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
+                    <strong id="status-tire-rf-temp">--</strong>
                   </div>
-                  <div class="tyre-stack">
-                    <div class="status-tyre" data-tire="lf" data-state="unavailable">
-                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
-                      <strong id="status-tire-lf-temp">--</strong>
-                    </div>
-                    <div class="corner-wear">
-                      <div class="tyre-wear-rail"><i id="status-tire-lf-wear-bar"></i></div>
-                      <em id="status-tire-lf-wear">--</em>
-                    </div>
+                  <div class="corner-wear">
+                    <div class="tyre-wear-rail"><i id="status-tire-rf-wear-bar"></i></div>
+                    <em id="status-tire-rf-wear">--</em>
                   </div>
-                  <div class="brake-status">
-                    <span>Brake temp (<i data-temperature-unit>&deg;C</i>)</span>
-                    <div class="brake-values">
-                      <strong id="status-brake-lf-temp">--</strong>
-                      <strong id="status-brake-rf-temp">--</strong>
-                    </div>
-                    <small>Tyre wear (%)</small>
-                  </div>
-                  <div class="tyre-stack">
-                    <div class="status-tyre" data-tire="rf" data-state="unavailable">
-                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
-                      <strong id="status-tire-rf-temp">--</strong>
-                    </div>
-                    <div class="corner-wear">
-                      <div class="tyre-wear-rail"><i id="status-tire-rf-wear-bar"></i></div>
-                      <em id="status-tire-rf-wear">--</em>
-                    </div>
-                  </div>
-                  <div class="wheel-data wheel-data-right">
-                    <b>FR</b>
-                    <span>Pressure</span>
+                  <aside class="tyre-pressure-gauge" data-pressure-wheel="rf" aria-label="FR tyre pressure">
+                    <span>Pressure</span><small data-pressure-unit>bar</small>
                     <strong id="status-tire-rf-pressure">--</strong>
-                  </div>
+                    <div class="tyre-pressure-scale" aria-hidden="true">
+                      <i style="--pressure-level: 0%"></i>
+                      <span class="pressure-tick pressure-tick-high">2.5</span>
+                      <span class="pressure-tick pressure-tick-mid">2.0</span>
+                      <span class="pressure-tick pressure-tick-low">1.5</span>
+                      <span class="pressure-tick pressure-tick-min">1.0</span>
+                    </div>
+                  </aside>
                 </div>
-
-                <div class="car-systems">
-                  <div id="status-battery-panel" class="battery-status" hidden>
-                    <span>SoC</span>
-                    <div class="battery-gauge"><i id="status-battery-bar"></i></div>
-                    <strong id="status-battery">--</strong>
-                  </div>
-                  <div class="system-bars">
-                    <div class="system-line">
-                      <div class="system-label"><i data-status-for="engine"></i><span>Engine temp (<b data-temperature-unit>&deg;C</b>)</span><i data-status-for="engine"></i></div>
-                      <div class="system-rail engine-rail"><i id="status-engine-temp-bar"></i></div>
-                      <div class="system-scale"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span><span>120</span><span>140</span></div>
-                      <strong id="status-engine-temp">--</strong>
-                    </div>
-                    <div class="system-line">
-                      <div class="system-label"><i data-status-for="rpm"></i><span>RPM (x1000)</span><i data-status-for="rpm"></i></div>
-                      <div class="system-rail rpm-rail"><i id="status-rpm-bar"></i></div>
-                      <div class="system-scale"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span><span>12</span></div>
-                      <strong id="status-rpm-value">--</strong>
-                    </div>
-                    <div class="system-line">
-                      <div class="system-label"><i data-status-for="fuel"></i><span>Fuel</span><i data-status-for="fuel"></i></div>
-                      <div class="system-rail fuel-rail"><i id="status-fuel-bar"></i></div>
-                      <div class="system-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
-                      <strong id="status-fuel-value">--</strong>
-                    </div>
-                    <div class="empty-lap">Empty <strong id="status-empty-lap">lap --</strong></div>
-                  </div>
+                <div class="reference-car">
+                  <img src="/IMG/car-status-gt-top-view.png?v=20260724-gt3-transparent" alt="Top view of a black and red GT3 race car">
                 </div>
-
-                <div class="status-axle status-rear-axle">
-                  <div class="wheel-data wheel-data-left">
-                    <b>RL</b>
-                    <span>Pressure</span>
+                <svg class="tyre-connector-lines" viewBox="0 0 900 640" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="tyre-connector tyre-connector-fl" d="M176 91H223V190H270"></path>
+                  <path class="tyre-connector tyre-connector-fr" d="M724 91H677V190H630"></path>
+                  <path class="tyre-connector tyre-connector-rl" d="M176 536H216V452H255"></path>
+                  <path class="tyre-connector tyre-connector-rr" d="M724 536H684V452H645"></path>
+                </svg>
+                <div class="reference-corner reference-corner-rl rear-tyre-card">
+                  <b>RL</b>
+                  <div class="status-tyre" data-tire="lr" data-state="unavailable">
+                    <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
+                    <strong id="status-tire-lr-temp">--</strong>
+                  </div>
+                  <div class="corner-wear">
+                    <div class="tyre-wear-rail"><i id="status-tire-lr-wear-bar"></i></div>
+                    <em id="status-tire-lr-wear">--</em>
+                  </div>
+                  <aside class="tyre-pressure-gauge" data-pressure-wheel="lr" aria-label="RL tyre pressure">
+                    <span>Pressure</span><small data-pressure-unit>bar</small>
                     <strong id="status-tire-lr-pressure">--</strong>
-                  </div>
-                  <div class="tyre-stack">
-                    <div class="status-tyre" data-tire="lr" data-state="unavailable">
-                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
-                      <strong id="status-tire-lr-temp">--</strong>
+                    <div class="tyre-pressure-scale" aria-hidden="true">
+                      <i style="--pressure-level: 0%"></i>
+                      <span class="pressure-tick pressure-tick-high">2.5</span>
+                      <span class="pressure-tick pressure-tick-mid">2.0</span>
+                      <span class="pressure-tick pressure-tick-low">1.5</span>
+                      <span class="pressure-tick pressure-tick-min">1.0</span>
                     </div>
-                    <div class="corner-wear">
-                      <div class="tyre-wear-rail"><i id="status-tire-lr-wear-bar"></i></div>
-                      <em id="status-tire-lr-wear">--</em>
-                    </div>
-                  </div>
-                  <div class="brake-status">
-                    <span>Brake temp (<i data-temperature-unit>&deg;C</i>)</span>
-                    <div class="brake-values">
-                      <strong id="status-brake-lr-temp">--</strong>
-                      <strong id="status-brake-rr-temp">--</strong>
-                    </div>
-                    <small>Tyre wear (%)</small>
-                  </div>
-                  <div class="tyre-stack">
-                    <div class="status-tyre" data-tire="rr" data-state="unavailable">
-                      <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
-                      <strong id="status-tire-rr-temp">--</strong>
-                    </div>
-                    <div class="corner-wear">
-                      <div class="tyre-wear-rail"><i id="status-tire-rr-wear-bar"></i></div>
-                      <em id="status-tire-rr-wear">--</em>
-                    </div>
-                  </div>
-                  <div class="wheel-data wheel-data-right">
-                    <b>RR</b>
-                    <span>Pressure</span>
-                    <strong id="status-tire-rr-pressure">--</strong>
-                  </div>
+                  </aside>
                 </div>
+                <div class="reference-corner reference-corner-rr rear-tyre-card">
+                  <b>RR</b>
+                  <div class="status-tyre" data-tire="rr" data-state="unavailable">
+                    <span>Tyre temp</span><small data-temperature-unit>&deg;C</small>
+                    <strong id="status-tire-rr-temp">--</strong>
+                  </div>
+                  <div class="corner-wear">
+                    <div class="tyre-wear-rail"><i id="status-tire-rr-wear-bar"></i></div>
+                    <em id="status-tire-rr-wear">--</em>
+                  </div>
+                  <aside class="tyre-pressure-gauge" data-pressure-wheel="rr" aria-label="RR tyre pressure">
+                    <span>Pressure</span><small data-pressure-unit>bar</small>
+                    <strong id="status-tire-rr-pressure">--</strong>
+                    <div class="tyre-pressure-scale" aria-hidden="true">
+                      <i style="--pressure-level: 0%"></i>
+                      <span class="pressure-tick pressure-tick-high">2.5</span>
+                      <span class="pressure-tick pressure-tick-mid">2.0</span>
+                      <span class="pressure-tick pressure-tick-low">1.5</span>
+                      <span class="pressure-tick pressure-tick-min">1.0</span>
+                    </div>
+                  </aside>
+                </div>
+                <section class="car-status-footer" aria-label="Live engine, RPM, speed and fuel">
+                  <article class="car-status-metric car-status-metric-oil">
+                    <div class="car-status-metric-head">
+                      <svg class="car-status-metric-icon engine-temp-icon oil-temp-icon" viewBox="0 0 24 32" aria-hidden="true">
+                        <path d="M9 4a3 3 0 0 1 6 0v14.2a6 6 0 1 1-6 0Z"></path>
+                        <path d="M12 7v14"></path>
+                        <path d="M3 26c1.4 0 1.4 1.5 2.8 1.5S7.2 26 8.6 26s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5"></path>
+                      </svg>
+                      <div><b>Oil temp</b><small data-temperature-unit>&deg;C</small></div>
+                    </div>
+                    <strong id="status-oil-temp">--</strong>
+                    <div class="engine-sparkline-wrap">
+                      <div class="engine-sparkline-scale" id="status-oil-temp-scale" aria-hidden="true"><span>150</span><span>100</span><span>50</span></div>
+                      <svg class="car-status-sparkline" id="status-oil-temp-chart" viewBox="0 0 150 54" preserveAspectRatio="none" role="img" aria-label="Oil temperature history for the last hour">
+                        <defs>
+                          <linearGradient id="oil-temp-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#ffb34d" stop-opacity="0.25"></stop>
+                            <stop offset="70%" stop-color="#ffb34d" stop-opacity="0.07"></stop>
+                            <stop offset="100%" stop-color="#ffb34d" stop-opacity="0"></stop>
+                          </linearGradient>
+                        </defs>
+                        <path class="spark-grid" d="M0 5H150M0 27H150M0 49H150"></path>
+                        <path class="spark-area spark-area-oil" fill="url(#oil-temp-fill)" id="status-oil-temp-area" d=""></path>
+                        <path class="spark-line spark-line-oil" id="status-oil-temp-line" d=""></path>
+                        <circle class="spark-point spark-point-start" id="status-oil-temp-start" r="2"></circle>
+                        <circle class="spark-point spark-point-current" id="status-oil-temp-current" r="2.2"></circle>
+                      </svg>
+                    </div>
+                    <div class="spark-time-scale" aria-hidden="true"><span id="status-oil-temp-range-start">Start</span><span>Now</span></div>
+                  </article>
+                  <article class="car-status-metric car-status-metric-water">
+                    <div class="car-status-metric-head">
+                      <svg class="car-status-metric-icon engine-temp-icon weather-temp-icon" viewBox="0 0 24 32" aria-hidden="true">
+                        <path d="M9 4a3 3 0 0 1 6 0v14.2a6 6 0 1 1-6 0Z"></path>
+                        <path d="M12 7v14"></path>
+                        <path d="M3 26c1.4 0 1.4 1.5 2.8 1.5S7.2 26 8.6 26s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5"></path>
+                      </svg>
+                      <div><b>Water temp</b><small data-temperature-unit>&deg;C</small></div>
+                    </div>
+                    <strong id="status-water-temp">--</strong>
+                    <div class="engine-sparkline-wrap">
+                      <div class="engine-sparkline-scale" aria-hidden="true"><span>50</span><span>25</span><span>0</span></div>
+                      <svg id="status-water-temp-chart" class="car-status-sparkline" viewBox="0 0 150 54" preserveAspectRatio="none" role="img" aria-label="Water temperature over the last hour">
+                        <defs>
+                          <linearGradient id="water-temp-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#1599ff" stop-opacity="0.25"></stop>
+                            <stop offset="70%" stop-color="#1599ff" stop-opacity="0.07"></stop>
+                            <stop offset="100%" stop-color="#1599ff" stop-opacity="0"></stop>
+                          </linearGradient>
+                        </defs>
+                        <path class="spark-grid" d="M0 5H150M0 27H150M0 49H150"></path>
+                        <path id="status-water-temp-area" class="spark-area spark-area-blue" fill="url(#water-temp-fill)" d=""></path>
+                        <path id="status-water-temp-line" class="spark-line spark-line-blue" d=""></path>
+                      </svg>
+                    </div>
+                    <div class="spark-time-scale water-temp-time-scale">
+                      <span>Start <b id="status-water-temp-start">--</b></span>
+                      <span>Now <b id="status-water-temp-current">--</b></span>
+                    </div>
+                  </article>
+                  <article class="car-status-metric car-status-metric-fuel">
+                    <div class="car-status-metric-head"><span class="car-status-metric-icon" aria-hidden="true">⛽</span><div><b>Fuel</b></div></div>
+                    <strong id="status-fuel-value">--</strong>
+                    <div class="car-status-fuel-gauge" aria-hidden="true"><i id="status-fuel-bar"></i></div>
+                    <div class="car-status-fuel-scale"><span>E</span><span>F</span></div>
+                    <small class="car-status-est-laps">Est. laps <b id="status-empty-lap">--</b></small>
+                  </article>
+                </section>
               </div>
             </article>
             <div class="overview-car-status-placeholder" aria-hidden="true"></div>
@@ -273,32 +326,34 @@
 
     <section class="screen" data-screen-panel="leaderboard">
       <section class="race-control-board">
-        <div class="leaderboard-metrics" aria-label="Focused car summary">
-          <article class="leaderboard-metric">
-            <span>Current lap</span>
-            <strong id="leaderboard-current-lap">--</strong>
-          </article>
-          <article class="leaderboard-metric">
-            <span>Position</span>
-            <strong id="leaderboard-position" class="cyan-value">--</strong>
-          </article>
-          <article class="leaderboard-metric">
-            <span>Last lap</span>
-            <strong id="leaderboard-last-lap" class="amber-value">--</strong>
-          </article>
-          <article class="leaderboard-metric">
-            <span>Best lap</span>
-            <strong id="leaderboard-best-lap" class="green-value">--</strong>
-          </article>
-        </div>
-
-        <article class="leaderboard-focus-summary" aria-label="Focused driver summary">
-          <span>Watching</span>
-          <div class="watching-value-row">
-            <strong id="leaderboard-watching-number">--</strong>
-            <small id="leaderboard-watching-driver">Waiting for camera focus...</small>
+        <section class="leaderboard-summary-panel" aria-label="Focused car and driver summary">
+          <div class="leaderboard-metrics">
+            <article class="leaderboard-metric">
+              <span>Current lap</span>
+              <strong id="leaderboard-current-lap">--</strong>
+            </article>
+            <article class="leaderboard-metric">
+              <span>Position</span>
+              <strong id="leaderboard-position" class="cyan-value">--</strong>
+            </article>
+            <article class="leaderboard-metric">
+              <span>Last lap</span>
+              <strong id="leaderboard-last-lap" class="amber-value">--</strong>
+            </article>
+            <article class="leaderboard-metric">
+              <span>Best lap</span>
+              <strong id="leaderboard-best-lap" class="green-value">--</strong>
+            </article>
           </div>
-        </article>
+
+          <article class="leaderboard-focus-summary">
+            <span>Watching</span>
+            <div class="watching-value-row">
+              <strong id="leaderboard-watching-number">--</strong>
+              <small id="leaderboard-watching-driver">Waiting for camera focus...</small>
+            </div>
+          </article>
+        </section>
 
         <article class="leaderboard-table-panel">
           <div class="leaderboard-toolbar">
@@ -357,6 +412,9 @@
         </div>
         <div class="trackmap-wrap">
           <div class="trackmap-stage">
+            <div class="trackmap-stage-title">
+              <span id="main-map-title">Track Map</span>
+            </div>
             <button
               id="switch-track-map"
               class="trackmap-switch-button"
@@ -396,24 +454,56 @@
           <aside class="map-side-stack" aria-label="Map details">
             <div class="map-weather-card">
               <div class="map-weather-head">
-                <p class="section-label">Weather status</p>
+                <div>
+                  <p class="section-label">Track &amp; weather</p>
+                  <span class="weather-card-subtitle">Live conditions</span>
+                </div>
+                <span class="weather-live-dot">LIVE</span>
               </div>
-              <div class="weather-row"><span>WIND SPEED</span><strong id="wind-speed">--</strong></div>
-              <div class="weather-row"><span>DIRECTION</span><strong id="wind-direction">--</strong></div>
-              <div class="weather-row"><span>AIR TEMP</span><strong id="air-temp">--</strong></div>
-              <div class="weather-row"><span>HUMIDITY</span><strong id="humidity">--</strong></div>
-              <div class="weather-section-head">
-                <p class="section-label">Track status</p>
+              <div class="weather-metrics">
+                <div class="weather-row weather-metric weather-metric-track">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 14.76V5a4 4 0 0 0-8 0v9.76a6 6 0 1 0 8 0ZM10 3a2 2 0 0 1 2 2v10.87l.5.3a4 4 0 1 1-5 0l.5-.3V5a2 2 0 0 1 2-2Zm-1 5h2v8.35a2.5 2.5 0 1 1-2 0Z"/></svg></span>
+                  <span>TRACK TEMP</span><strong id="track-temp">--</strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-wet">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 13.5c2.3-2.3 4.7-2.3 7 0s4.7 2.3 7 0 4.7-2.3 7 0v3c-2.3-2.3-4.7-2.3-7 0s-4.7 2.3-7 0-4.7-2.3-7 0v-3ZM4 6h16v2H4V6Z"/></svg></span>
+                  <span>WETNESS</span><strong id="track-wetness">--</strong>
+                </div>
+                <div class="weather-section-head" aria-hidden="true">
+                  <p class="section-label">Weather status</p>
+                </div>
+                <div class="weather-row weather-metric weather-metric-air">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 14.76V5a4 4 0 0 0-8 0v9.76a6 6 0 1 0 8 0ZM10 3a2 2 0 0 1 2 2v10.87l.5.3a4 4 0 1 1-5 0l.5-.3V5a2 2 0 0 1 2-2Zm-1 5h2v8.35a2.5 2.5 0 1 1-2 0Z"/></svg></span>
+                  <span>AIR TEMP</span><strong id="air-temp">--</strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-cloud">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 19a5 5 0 0 1-.65-9.96A7 7 0 0 1 19.8 11.5 3.75 3.75 0 0 1 19.25 19H7Zm0-2h12.25a1.75 1.75 0 1 0-.92-3.24l-1.06.65-.4-1.18A5 5 0 0 0 7.1 11L7 11a3 3 0 0 0 0 6Z"/></svg></span>
+                  <span>CLOUD COVER</span><strong id="cloud-cover">--</strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-humidity">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.5 6.5 10A7 7 0 1 0 17.5 10L12 2.5Zm0 16.5a5 5 0 0 1-4-8l4-5.46L16 11a5 5 0 0 1-4 8Zm-2.8-5.5h5.6v2H9.2v-2Z"/></svg></span>
+                  <span>HUMIDITY</span><strong id="humidity">--</strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-rain">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 4.08V2h2v2.08A8 8 0 0 1 20 12h-7v7a1 1 0 0 0 2 0v-1h2v1a3 3 0 0 1-6 0v-7H4a8 8 0 0 1 7-7.92ZM6.35 10h11.3A6 6 0 0 0 6.35 10Z"/></svg></span>
+                  <span>RAIN</span>
+                  <strong><span id="rain-state">--</span><small id="precipitation">--</small></strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-wind">
+                  <span id="wind-direction-arrow" class="weather-metric-icon weather-wind-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 8 19-8-4-8 4 8-19Zm0 5.2-3.9 9.2 3.9-1.95 3.9 1.95L12 7.2Z"/></svg></span>
+                  <span>WIND</span>
+                  <strong><span id="wind-speed">--</span><small id="wind-direction">--</small></strong>
+                </div>
+                <div class="weather-row weather-metric weather-metric-fog">
+                  <span class="weather-metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h12a3 3 0 1 0-3-3h2a1 1 0 1 1 1 1H3v2Zm0 5h17a3 3 0 1 1-3 3h2a1 1 0 1 0 1-1H3v-2Zm0 7h9a3 3 0 1 1-3 3h2a1 1 0 1 0 1-1H3v-2Z"/></svg></span>
+                  <span>FOG</span><strong id="fog">--</strong>
+                </div>
               </div>
-              <div class="weather-row"><span>TRACK TEMP</span><strong id="track-temp">--</strong></div>
-              <div class="weather-row"><span>WETNESS</span><strong id="track-wetness">--</strong></div>
-              <div class="weather-row"><span>SKIES</span><strong id="track-skies">--</strong></div>
-              <div class="weather-row"><span>DECLARED WET</span><strong id="track-declared-wet">--</strong></div>
             </div>
             <div class="map-aux-card map-aux-card-primary pit-exit-card" aria-label="Pit exit position">
               <div class="pit-exit-head">
                 <div>
-                  <span>PIT EXIT PREDICTION</span>
+                  <span>PIT EXIT PREDICTION -</span>
                 </div>
               </div>
               <div class="pit-exit-map-stage">
@@ -448,204 +538,71 @@
               </div>
             </div>
             <div class="map-aux-card map-fuel-status-card" aria-label="Fuel status">
-              <div class="map-weather-head">
-                <p class="section-label">Status - Fuel</p>
+              <div class="map-weather-head map-fuel-head">
+                <div>
+                  <p class="section-label">Status - Fuel</p>
+                  <small id="map-fuel-confidence">NO DATA</small>
+                </div>
+                <strong id="map-fuel-state">WAITING</strong>
               </div>
-              <div class="weather-row"><span>LINJE 1</span><strong>--</strong></div>
-              <div class="weather-row"><span>LINJE 2</span><strong>--</strong></div>
+              <div class="map-fuel-level">
+                <div><span>CURRENT FUEL</span><strong id="map-fuel-current">--</strong></div>
+                <div class="map-fuel-level-rail" aria-hidden="true"><i id="map-fuel-level-fill"></i></div>
+                <small><span>EMPTY</span><span id="map-fuel-capacity">FULL</span></small>
+              </div>
+              <div class="map-fuel-section-label">RANGE</div>
+              <div class="weather-row"><span>EST. RANGE</span><strong id="map-fuel-laps">--</strong></div>
+              <div class="weather-row"><span>LAPS REMAINING</span><strong id="map-fuel-laps-remaining">--</strong></div>
+              <div class="weather-row"><span>FUEL AT FINISH</span><strong id="map-fuel-at-finish">--</strong></div>
+              <div class="map-fuel-section-label">CONSUMPTION <small id="map-fuel-samples">0 LAPS</small></div>
+              <div class="weather-row"><span>LAST LAP</span><strong id="map-fuel-last">--</strong></div>
+              <div class="weather-row"><span>AVERAGE · 5 LAPS</span><strong id="map-fuel-consumption">--</strong></div>
+              <div class="weather-row"><span>CONSERVATIVE</span><strong id="map-fuel-maximum">--</strong></div>
+              <div class="map-fuel-section-label">RECOMMENDATION <small id="map-fuel-mode">BALANCED · 0.50 LAP RESERVE</small></div>
+              <div class="weather-row"><span>FUEL REQUIRED</span><strong id="map-fuel-needed">--</strong></div>
+              <div class="weather-row map-fuel-recommendation"><span>RECOMMENDED ADD</span><strong id="map-fuel-add">--</strong></div>
+              <div class="weather-row"><span>EST. REFUEL TIME</span><strong id="map-fuel-refuel-time">--</strong></div>
             </div>
           </aside>
         </div>
       </article>
     </section>
 
-    <section class="screen" data-screen-panel="test">
-      <article class="test-weather-dashboard" aria-label="Live weather and track map">
-        <header class="test-weather-header">
-          <div class="test-weather-title">
-            <span class="test-weather-icon" aria-hidden="true">&#9729;</span>
-            <div>
-              <p class="section-label">Weather</p>
-              <strong id="test-weather-track-name">Waiting for track</strong>
-            </div>
-          </div>
-          <span id="test-weather-live-status" class="test-weather-live-status" aria-live="polite">Offline</span>
-        </header>
-
-        <div class="test-weather-layout">
-          <div class="test-weather-compare" aria-label="Weather visualization comparison">
-          <section class="test-weather-map-card" aria-label="Telemetry-based weather estimate">
-            <div id="test-weather-map-stage" class="test-weather-map-stage test-weather-square">
-              <div
-                id="test-weather-cloud-layer"
-                class="test-weather-cloud-layer"
-                data-cloud-cover="unknown"
-                aria-label="Live cloud cover unavailable"
-              >
-                <span class="weather-cloud weather-cloud-1"></span>
-                <span class="weather-cloud weather-cloud-2"></span>
-                <span class="weather-cloud weather-cloud-3"></span>
-                <span class="weather-cloud weather-cloud-4"></span>
-                <span class="weather-cloud weather-cloud-5"></span>
-                <span class="weather-cloud weather-cloud-6"></span>
-                <span class="weather-cloud weather-cloud-7"></span>
-                <span class="weather-cloud weather-cloud-8"></span>
-                <span class="weather-cloud weather-cloud-9"></span>
-                <span class="weather-cloud weather-cloud-10"></span>
-                <span class="weather-rain-depth weather-rain-depth-far" aria-hidden="true"></span>
-                <span class="weather-rain-depth weather-rain-depth-near" aria-hidden="true"></span>
-              </div>
-              <canvas
-                id="test-weather-radar-canvas"
-                class="test-weather-radar-canvas"
-                aria-label="Simulated precipitation field calculated from live iRacing weather telemetry"
-              ></canvas>
-              <span
-                id="test-weather-radar-badge"
-                class="test-weather-radar-badge"
-                title="Cell positions are simulated; intensity and movement use live iRacing telemetry"
-              >SIMULATED PRECIPITATION</span>
-              <div class="test-weather-radar-legend" aria-hidden="true">
-                <span>LIGHT</span>
-                <i></i>
-                <span>HEAVY</span>
-              </div>
-              <button
-                id="test-weather-zoom-toggle"
-                class="test-weather-zoom-toggle"
-                type="button"
-                aria-label="Zoom track map out three times"
-                aria-pressed="false"
-                title="Zoom track map out 3×"
-              >
-                <span aria-hidden="true">&minus;</span>
-                <strong>3&times;</strong>
-              </button>
-              <svg id="test-weather-map" viewBox="0 0 520 380" aria-label="Weather map using the current track outline">
-                <g id="test-weather-map-content">
-                  <g id="test-weather-map-layers"></g>
-                  <use href="#test-weather-track-outline" class="test-weather-track-halo" aria-hidden="true"></use>
-                  <path id="test-weather-track-outline" class="test-weather-track-outline"></path>
-                </g>
-              </svg>
-            </div>
-            <div id="test-weather-forecast" class="test-weather-forecast" aria-label="Hourly weather forecast">
-              <div class="test-weather-forecast-track">
-                <article class="test-weather-forecast-hour">
-                  <time datetime="22:00">10:00 pm</time>
-                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 89%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
-                  <small>22 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="00:00">12:00 am</time>
-                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 88%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
-                  <small>18 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour is-current">
-                  <time datetime="00:05">12:05 am</time>
-                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 100%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 88%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
-                  <small>18 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="02:00">2:00 am</time>
-                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
-                  <small>14 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="04:00">4:00 am</time>
-                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-s" aria-hidden="true">&#8593;</span> S</span>
-                  <small>13 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="06:00">6:00 am</time>
-                  <span class="test-weather-forecast-icon is-night" aria-label="Clear night">&#9790;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 98%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
-                  <small>12 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="08:00">8:00 am</time>
-                  <span class="test-weather-forecast-icon is-day" aria-label="Partly cloudy">&#127780;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 96%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-w" aria-hidden="true">&#8593;</span> W</span>
-                  <small>15 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="10:00">10:00 am</time>
-                  <span class="test-weather-forecast-icon is-day" aria-label="Sunny">&#9728;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 8%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 90%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-w" aria-hidden="true">&#8593;</span> W</span>
-                  <small>22 km/h</small>
-                </article>
-                <article class="test-weather-forecast-hour">
-                  <time datetime="12:00">12:00 pm</time>
-                  <span class="test-weather-forecast-icon is-rain" aria-label="Rain">&#127783;&#65039;</span>
-                  <strong>19&nbsp;&deg;C</strong>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#9730;</span> 79%</span>
-                  <span class="test-weather-forecast-reading"><span aria-hidden="true">&#128167;</span> 89%</span>
-                  <span class="test-weather-forecast-wind"><span class="wind-arrow is-sw" aria-hidden="true">&#8593;</span> SW</span>
-                  <small>24 km/h</small>
-                </article>
-              </div>
-            </div>
-          </section>
-          </div>
-
-          <aside class="test-weather-details" aria-label="Current weather details">
-            <section class="test-weather-detail-card">
-              <div class="test-weather-detail-heading">
-                <p>Weather status</p>
-                <span id="test-weather-detail-live">Offline</span>
-              </div>
-              <div class="test-weather-detail-row"><span>Precipitation</span><strong id="test-weather-precipitation">--</strong></div>
-              <div class="test-weather-detail-row"><span>Wind speed</span><strong id="test-weather-wind-speed">--</strong></div>
-              <div class="test-weather-detail-row"><span>Direction</span><strong id="test-weather-wind-direction">--</strong></div>
-              <div class="test-weather-detail-row"><span>Air temp</span><strong id="test-weather-air-temp">--</strong></div>
-              <div class="test-weather-detail-row"><span>Humidity</span><strong id="test-weather-humidity">--</strong></div>
-            </section>
-
-            <section class="test-weather-detail-card">
-              <div class="test-weather-detail-heading"><p>Track status</p></div>
-              <div class="test-weather-detail-row"><span>Track temp</span><strong id="test-weather-track-temp">--</strong></div>
-              <div class="test-weather-detail-row"><span>Wetness</span><strong id="test-weather-wetness">--</strong></div>
-              <div class="test-weather-detail-row"><span>Skies</span><strong id="test-weather-skies">--</strong></div>
-              <div class="test-weather-detail-row"><span>Declared wet</span><strong id="test-weather-declared-wet">--</strong></div>
-            </section>
-
-          </aside>
-        </div>
-      </article>
-    </section>
+    <section class="screen" data-screen-panel="test" aria-label="Test and work in progress"></section>
 
     <section class="screen" data-screen-panel="car-setup-pit" aria-label="Car setup and car pit">
-      <div class="car-setup-layout" data-car-status-target>
-        <article class="module car-setup-window" aria-label="Pit setup">
+      <div id="pit-setup-prototype" hidden aria-hidden="true">
+        <article class="test-pit">
+          <header class="test-pit-title"><span aria-hidden="true">🛠</span><h2>Pit Setup</h2></header>
+          <section class="test-pit-top">
+            <div><span>Next stop</span><strong>Lap 18</strong><small>Est. Time <b>29:56.123</b></small></div>
+            <div><span>Pit window</span><strong>Lap 17–21</strong><i><b></b></i><small>73% window</small></div>
+            <div><span>Est. stop time</span><strong class="test-pit-green">31.5 s</strong><small>Last Stop <b>31.2 s</b></small></div>
+          </section>
+          <div class="test-pit-services-head"><strong>Services</strong><span>Est. total <b>31.5 s</b></span></div>
+          <section class="test-pit-services" aria-label="Pit services">
+            <button type="button" disabled><span class="test-service-icon">◉</span><b>Tires</b></button>
+            <button type="button" class="is-selected" data-test-service-toggle aria-pressed="true"><span class="test-service-icon">◒</span><b>Windshield tearoff</b><small>+1.0 s</small></button>
+            <button type="button" disabled><span class="test-service-icon">⛽</span><b>Fuel</b></button>
+          </section>
+          <section class="test-pit-car-grid">
+            <article class="test-wheel-card" data-corner="FL"><div class="test-wheel-visual"></div><div><strong>Tire change</strong><span>Compound <b>Medium</b></span><span>Wear <em>67%</em></span></div><button type="button" data-test-tire aria-pressed="true">Change</button><small>Est. <b>+2.5 s</b></small></article>
+            <div class="test-pit-car"><img src="/IMG/car-status-gt-top-view.png" alt="GT race car viewed from above"></div>
+            <article class="test-wheel-card" data-corner="FR"><div class="test-wheel-visual"></div><div><strong>Tire change</strong><span>Compound <b>Medium</b></span><span>Wear <em>65%</em></span></div><button type="button" data-test-tire aria-pressed="true">Change</button><small>Est. <b>+2.5 s</b></small></article>
+            <article class="test-wheel-card" data-corner="RL"><div class="test-wheel-visual"></div><div><strong>Tire change</strong><span>Compound <b>Medium</b></span><span>Wear <em>68%</em></span></div><button type="button" data-test-tire aria-pressed="true">Change</button><small>Est. <b>+2.5 s</b></small></article>
+            <button class="test-repair" type="button" data-test-service-toggle aria-pressed="false" hidden><span>🔧</span><b>Repair</b><small>Body / Aero<br>--</small></button>
+            <article class="test-wheel-card" data-corner="RR"><div class="test-wheel-visual"></div><div><strong>Tire change</strong><span>Compound <b>Medium</b></span><span>Wear <em>66%</em></span></div><button type="button" data-test-tire aria-pressed="true">Change</button><small>Est. <b>+2.5 s</b></small></article>
+          </section>
+          <section class="test-pit-summary">
+            <div><strong>Pit strategy summary</strong><span>◉ New Tires <b>4× Medium</b></span><span>Fuel to Add <b>--</b></span><span>Windshield Tearoff <b>Yes</b></span><span>Est. Total Time <b class="test-pit-green">31.5 s</b></span></div>
+            <button type="button" id="test-pit-now"><strong>Pit now →</strong><span>Confirm Pit Stop</span></button>
+          </section>
+        </article>
+      </div>
+      <div class="car-setup-layout">
+        <div class="test-car-status-stage" data-car-status-target></div>
+        <article class="test-pit-status-copy test-car-status-stage car-setup-pit-status-copy" data-test-status-copy data-copy-title="PIT SETUP" aria-label="Pit setup car status"></article>
+        <article class="module car-setup-window" aria-label="Pit setup" hidden>
           <div class="module-head">
             <p class="section-label">Pit Setup</p>
           </div>
@@ -662,44 +619,6 @@
               <div>
                 <span>Est. stop</span>
                 <strong class="pit-accent-value">31.5 s</strong>
-              </div>
-            </section>
-
-            <section class="pit-setup-section">
-              <div class="pit-setup-heading">
-                <div>
-                  <span>Fuel</span>
-                  <small>Calculated to finish + 1 lap</small>
-                </div>
-                <strong id="pit-fuel-add-summary">+35.0 L</strong>
-              </div>
-              <div class="pit-fuel-visual">
-                <div id="pit-fuel-gauge" class="pit-fuel-gauge" style="--fuel-level: 39.5%; --fuel-arc-level: 29.625%" aria-label="Fuel after stop: 47.4 litres, 39.5 percent full">
-                  <div class="pit-fuel-gauge-core">
-                    <span>Fuel after stop</span>
-                    <strong id="pit-fuel-after-stop">47.4</strong>
-                    <small id="pit-fuel-percent">L &middot; 39.5% full</small>
-                  </div>
-                </div>
-                <div class="pit-fuel-readout">
-                  <div class="pit-fuel-control">
-                    <label for="pit-fuel-add">Add fuel</label>
-                    <div>
-                      <input id="pit-fuel-add" type="number" value="35.0" min="0" max="107.6" step="0.5" aria-describedby="pit-fuel-equation">
-                      <span>L</span>
-                    </div>
-                  </div>
-                  <div class="pit-fuel-scale" aria-hidden="true"><i id="pit-fuel-scale-fill" style="width: 39.5%"></i></div>
-                  <div class="pit-fuel-scale-labels" aria-hidden="true"><span>0</span><span>60</span><span>120 L</span></div>
-                  <div id="pit-fuel-equation" class="pit-fuel-equation" aria-label="12.4 litres at pit entry plus 35 litres added equals 47.4 litres after the stop">
-                    <div><span>Fuel at pit entry</span><strong>12.4 L</strong></div>
-                    <b aria-hidden="true">+</b>
-                    <div><span>Fuel added</span><strong id="pit-fuel-added-value">35.0 L</strong></div>
-                    <b aria-hidden="true">=</b>
-                    <div class="pit-fuel-equation-total"><span>After stop</span><strong id="pit-fuel-total-value">47.4 L</strong></div>
-                  </div>
-                  <div class="pit-data-row"><span>Estimated range</span><strong>22 laps</strong></div>
-                </div>
               </div>
             </section>
 
@@ -735,33 +654,12 @@
                 </div>
                 <div class="pit-car-service-row">
                     <div id="pit-fast-repair-control" class="pit-fast-repair-control">
-                      <button
-                        id="pit-fast-repair-toggle"
-                        class="pit-fast-repair-toggle"
-                        data-pit-fast-repair-toggle
-                        type="button"
-                        aria-label="Toggle fast repair"
-                        aria-pressed="false"
-                      >
+                      <button id="pit-fast-repair-toggle" class="pit-fast-repair-toggle" data-pit-all-tires-toggle type="button" aria-label="Toggle all tire changes" aria-pressed="false">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M14.7 6.3a4.6 4.6 0 0 0-5.9 5.9L3.5 17.5a2.1 2.1 0 1 0 3 3l5.3-5.3a4.6 4.6 0 0 0 5.9-5.9l-2.8 2.8-3-3 2.8-2.8Z"></path>
+                          <circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle>
+                          <path d="M8.5 5.2 10 8M15.5 5.2 14 8M18.8 8.5 16 10M18.8 15.5 16 14M15.5 18.8 14 16M8.5 18.8 10 16M5.2 15.5 8 14M5.2 8.5 8 10"></path>
                         </svg>
-                        <span>Repair</span>
-                      </button>
-                    </div>
-                    <div class="pit-fast-repair-control pit-fast-repair-control-adjacent">
-                      <button
-                        id="pit-fast-repair-toggle-adjacent"
-                        class="pit-fast-repair-toggle"
-                        data-pit-fast-repair-toggle
-                        type="button"
-                        aria-label="Toggle fast repair"
-                        aria-pressed="false"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M14.7 6.3a4.6 4.6 0 0 0-5.9 5.9L3.5 17.5a2.1 2.1 0 1 0 3 3l5.3-5.3a4.6 4.6 0 0 0 5.9-5.9l-2.8 2.8-3-3 2.8-2.8Z"></path>
-                        </svg>
-                        <span>Repair</span>
+                        <span>Tires</span>
                       </button>
                     </div>
                     <button
@@ -891,6 +789,18 @@
               </div>
             </section>
 
+            <section class="pit-summary-panel" aria-labelledby="pit-summary-title">
+              <h3 id="pit-summary-title">Pit Summary</h3>
+              <div class="pit-summary-metrics">
+                <div><span>Total time</span><strong id="pit-summary-time">0.0 s</strong></div>
+                <div><span>Fuel added</span><strong>0.0 L</strong></div>
+                <div><span>Tires</span><strong id="pit-summary-tires">0 / 4</strong><small id="pit-summary-tire-state">None</small></div>
+                <div><span>Repairs</span><strong id="pit-summary-repairs"><i aria-hidden="true">✓</i> None</strong></div>
+                <div><span>Penalties</span><strong>0 s</strong></div>
+              </div>
+              <p class="pit-summary-status"><i aria-hidden="true">i</i><span id="pit-summary-status-text">Pit services ready.</span></p>
+            </section>
+
           </div>
         </article>
         <div class="cumulation-stack">
@@ -917,19 +827,346 @@
               <p class="section-label">FUEL CAL</p>
             </div>
             <div class="car-setup-window-content fuel-cal-window-content">
+              <input id="pit-crew-takeover" type="checkbox" hidden>
               <input id="pit-fast-repair" type="checkbox" hidden>
               <input id="pit-windscreen-tearoff" type="checkbox" checked hidden>
-              <footer class="pit-plan-footer">
-                <div>
-                  <span>Total pit-lane loss</span>
-                  <strong>52.8 s</strong>
-                  <small>21.3 s transit + 31.5 s stationary</small>
+              <section id="fuel-cal-status" class="fuel-cal-status is-waiting" aria-live="polite">
+                <div class="fuel-cal-status-copy">
+                  <span id="fuel-cal-state-label">WAITING FOR DATA</span>
+                  <strong id="fuel-cal-state-message">Complete a lap to calculate fuel</strong>
+                  <small id="fuel-cal-state-detail">No reliable consumption sample yet</small>
                 </div>
-                <button type="button">Apply pit setup</button>
-              </footer>
+                <div class="fuel-cal-tank" aria-label="Current fuel level">
+                  <div class="fuel-cal-tank-heading">
+                    <span>Current fuel</span>
+                    <strong id="fuel-cal-current">--</strong>
+                  </div>
+                  <div class="fuel-cal-tank-rail" aria-hidden="true">
+                    <i id="fuel-cal-tank-fill"></i>
+                    <b id="fuel-cal-required-marker"></b>
+                  </div>
+                  <div class="fuel-cal-tank-scale">
+                    <span>EMPTY</span>
+                    <span id="fuel-cal-capacity">--</span>
+                  </div>
+                </div>
+              </section>
+
+              <div class="fuel-cal-overview">
+                <section class="fuel-cal-card" aria-labelledby="fuel-cal-range-title">
+                  <header>
+                    <span id="fuel-cal-range-title">RANGE</span>
+                    <small id="fuel-cal-confidence" class="fuel-cal-confidence">NO DATA</small>
+                  </header>
+                  <div class="fuel-cal-metric fuel-cal-metric-primary">
+                    <span>Estimated range</span>
+                    <strong id="fuel-cal-range">--</strong>
+                  </div>
+                  <div class="fuel-cal-row"><span>Laps remaining</span><strong id="fuel-cal-laps-remaining">--</strong></div>
+                  <div class="fuel-cal-row"><span>Fuel at finish</span><strong id="fuel-cal-at-finish">--</strong></div>
+                </section>
+
+                <section class="fuel-cal-card" aria-labelledby="fuel-cal-consumption-title">
+                  <header>
+                    <span id="fuel-cal-consumption-title">CONSUMPTION</span>
+                    <small id="fuel-cal-sample-count">0 LAPS</small>
+                  </header>
+                  <div class="fuel-cal-row"><span>Last lap</span><strong id="fuel-cal-last">--</strong></div>
+                  <div class="fuel-cal-row"><span>Average · 5 laps</span><strong id="fuel-cal-average">--</strong></div>
+                  <div class="fuel-cal-row"><span>Conservative</span><strong id="fuel-cal-maximum">--</strong></div>
+                </section>
+              </div>
+
+              <section class="fuel-cal-strategy" aria-labelledby="fuel-cal-strategy-title">
+                <div class="fuel-cal-strategy-head">
+                  <div>
+                    <span id="fuel-cal-strategy-title">STRATEGY</span>
+                    <small>Choose the consumption model used for the recommendation</small>
+                  </div>
+                  <label for="fuel-cal-reserve">
+                    <span>Reserve</span>
+                    <select id="fuel-cal-reserve">
+                      <option value="0.25">0.25 lap</option>
+                      <option value="0.5" selected>0.50 lap</option>
+                      <option value="0.75">0.75 lap</option>
+                      <option value="1">1.00 lap</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="fuel-cal-scenarios" role="group" aria-label="Fuel calculation strategy">
+                  <button type="button" data-fuel-mode="attack" aria-pressed="false">
+                    <span>SAFE</span>
+                    <strong id="fuel-cal-attack-add">--</strong>
+                    <small id="fuel-cal-attack-rate">Highest use</small>
+                  </button>
+                  <button type="button" data-fuel-mode="balanced" aria-pressed="true">
+                    <span>BALANCED</span>
+                    <strong id="fuel-cal-balanced-add">--</strong>
+                    <small id="fuel-cal-balanced-rate">5-lap average</small>
+                  </button>
+                  <button type="button" data-fuel-mode="save" aria-pressed="false">
+                    <span>FUEL SAVE</span>
+                    <strong id="fuel-cal-save-add">--</strong>
+                    <small id="fuel-cal-save-rate">4% target saving</small>
+                  </button>
+                </div>
+                <div class="fuel-cal-result">
+                  <div><span>Fuel required</span><strong id="fuel-cal-required">--</strong></div>
+                  <div><span>Recommended add</span><strong id="fuel-cal-recommended">--</strong></div>
+                  <div><span>Finish reserve</span><strong id="fuel-cal-finish-reserve">--</strong></div>
+                  <div><span>Est. refuel time</span><strong id="fuel-cal-refuel-time">--</strong></div>
+                </div>
+              </section>
+
             </div>
           </article>
         </div>
+      </div>
+    </section>
+
+    <section class="screen" data-screen-panel="fuel" aria-label="Fuel">
+      <div class="fuel-dashboard">
+        <div class="fuel-card-column">
+          <article class="fuel-remaining-card" aria-labelledby="fuel-remaining-title">
+            <h2 id="fuel-remaining-title">Fuel remaining</h2>
+            <strong id="fuel-live-current" class="fuel-remaining-value">--</strong>
+
+            <div class="fuel-remaining-estimates">
+              <div>
+                <span>Laps remaining</span>
+                <strong id="fuel-live-remaining">--</strong>
+              </div>
+              <div>
+                <span>Est. laps</span>
+                <strong id="fuel-live-range">--</strong>
+              </div>
+            </div>
+
+            <div class="fuel-remaining-average">
+              <span>Fuel / lap (avg)</span>
+              <strong id="fuel-per-lap-primary">--</strong>
+            </div>
+          </article>
+
+          <article class="fuel-per-lap-summary-card" aria-labelledby="fuel-per-lap-title">
+            <h2 id="fuel-per-lap-title">Fuel per lap</h2>
+            <strong id="fuel-per-lap-summary-primary" class="fuel-per-lap-summary-value">--</strong>
+
+            <div class="fuel-per-lap-summary-stats">
+              <div>
+                <span>Avg</span>
+                <strong id="fuel-per-lap-average">--</strong>
+              </div>
+              <div>
+                <span>Last 5 laps</span>
+                <strong id="fuel-per-lap-five">--</strong>
+              </div>
+              <div>
+                <span>Last 10 laps</span>
+                <strong id="fuel-per-lap-ten">--</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="fuel-status-card" aria-labelledby="fuel-status-title">
+            <h2 id="fuel-status-title">Fuel status</h2>
+
+            <div id="fuel-live-dial" class="fuel-status-gauge" aria-label="Current fuel percentage">
+              <svg viewBox="0 0 180 92" aria-hidden="true">
+                <path class="fuel-status-arc fuel-status-arc-green" d="M20 82 A70 70 0 0 1 114 16"></path>
+                <path class="fuel-status-arc fuel-status-arc-amber" d="M114 16 A70 70 0 0 1 147 39"></path>
+                <path class="fuel-status-arc fuel-status-arc-red" d="M147 39 A70 70 0 0 1 160 82"></path>
+              </svg>
+              <strong id="fuel-live-percent">--</strong>
+              <span class="fuel-status-empty">E</span>
+              <span class="fuel-status-full">F</span>
+            </div>
+
+            <div class="fuel-status-current">
+              <span class="fuel-pump-icon" aria-hidden="true">⛽</span>
+              <strong id="fuel-status-current">--</strong>
+              <span>/</span>
+              <strong id="fuel-live-capacity">--</strong>
+            </div>
+
+            <div class="fuel-status-details">
+              <div><span>Tank capacity</span><strong id="fuel-status-tank-capacity">--</strong></div>
+              <div><span>Usable capacity</span><strong id="fuel-status-usable-capacity">--</strong></div>
+              <div><span>Reserve</span><strong id="fuel-status-reserve">--</strong></div>
+            </div>
+          </article>
+
+          <article class="fuel-delta-summary-card" aria-labelledby="fuel-delta-title">
+            <h2 id="fuel-delta-title">Fuel delta</h2>
+            <span class="fuel-delta-target">Vs target</span>
+            <strong id="fuel-delta-value" class="fuel-delta-summary-value">--</strong>
+
+            <div class="fuel-delta-chart">
+              <div class="fuel-delta-y-axis" aria-hidden="true">
+                <span>0.20</span>
+                <span>0.00</span>
+                <span>-0.20</span>
+              </div>
+              <svg viewBox="0 0 260 82" preserveAspectRatio="none" aria-label="Fuel delta over the last 20 laps">
+                <path class="fuel-delta-grid" d="M0 7 H260 M0 41 H260 M0 75 H260"></path>
+                <path id="fuel-delta-area" class="fuel-delta-summary-area"></path>
+                <path id="fuel-delta-line" class="fuel-delta-summary-line"></path>
+              </svg>
+              <div class="fuel-delta-x-axis" aria-hidden="true">
+                <span>-20</span>
+                <span>-15</span>
+                <span>-10</span>
+                <span>-5</span>
+                <span>Now</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <section class="fuel-planner-area" aria-label="Fuel strategy planning">
+          <article class="fuel-planner-panel fuel-calculator-panel">
+            <h2>Fuel calculator</h2>
+            <div class="fuel-calculator-legend" aria-hidden="true">
+              <span class="is-actual">Actual</span>
+              <span class="is-projected">Projected</span>
+              <span class="is-stint-one">Stint 1</span>
+              <span class="is-stint-two">Stint 2</span>
+              <span class="is-stint-three">Stint 3</span>
+              <span class="is-window">Refuel window</span>
+            </div>
+
+            <div class="fuel-calculator-chart-wrap">
+              <span class="fuel-calculator-y-title">Fuel (L)</span>
+              <svg class="fuel-calculator-chart" viewBox="0 0 928 280" preserveAspectRatio="none" aria-label="Fuel projection by lap">
+                <g class="fuel-calculator-grid">
+                  <path d="M48 30 H880 M48 84 H880 M48 138 H880 M48 192 H880 M48 246 H880"></path>
+                  <path d="M48 30 V246 M214 30 V246 M381 30 V246 M547 30 V246 M714 30 V246 M880 30 V246"></path>
+                </g>
+                <g class="fuel-calculator-axis-labels" aria-hidden="true">
+                  <text x="16" y="34">100</text><text x="25" y="88">75</text>
+                  <text x="25" y="142">50</text><text x="25" y="196">25</text><text x="35" y="250">0</text>
+                  <text x="48" y="265">0</text><text x="206" y="265">10</text><text x="373" y="265">20</text>
+                  <text x="539" y="265">30</text><text x="706" y="265">40</text><text x="872" y="265">50</text>
+                </g>
+                <rect class="fuel-calculator-refuel-window" x="500" y="30" width="75" height="216"></rect>
+                <line class="fuel-chart-reserve" x1="48" y1="230" x2="880" y2="230"></line>
+                <path id="fuel-chart-actual" class="fuel-chart-actual"></path>
+                <path id="fuel-chart-projected" class="fuel-chart-projected"></path>
+                <circle id="fuel-chart-current" class="fuel-chart-current" r="5"></circle>
+              </svg>
+              <span class="fuel-calculator-x-title">Lap</span>
+            </div>
+
+            <div class="fuel-calculator-summary">
+              <div>
+                <span>Finish prediction</span>
+                <strong id="fuel-live-finish">--</strong>
+                <small><b>Laps</b><em id="fuel-calculator-laps">--</em></small>
+              </div>
+              <div>
+                <span>Refuel window</span>
+                <strong id="fuel-calculator-window">--</strong>
+                <small><b>Optimal lap</b><em id="fuel-calculator-optimal">--</em></small>
+              </div>
+              <div>
+                <span>Recommended add</span>
+                <strong id="fuel-live-add">--</strong>
+                <small><b>New total</b><em id="fuel-calculator-total">--</em></small>
+              </div>
+              <div>
+                <span>Safety margin</span>
+                <strong id="fuel-live-reserve">--</strong>
+                <small><em id="fuel-calculator-margin-laps">--</em></small>
+              </div>
+            </div>
+          </article>
+
+          <article class="fuel-planner-panel fuel-planner-panel-two fuel-stint-planner">
+            <h2>Stint planer</h2>
+            <div class="fuel-stint-table">
+              <div class="fuel-stint-table-head">
+                <span>Stint</span><span>Laps</span><span>Fuel / lap</span><span>Stint fuel</span>
+                <span>End fuel</span><span>Pit lap</span><span>Add fuel</span><span>New total</span>
+              </div>
+              <div class="fuel-stint-table-row">
+                <b class="fuel-stint-badge is-blue">1</b>
+                <strong id="fuel-plan-laps-one">--</strong>
+                <strong id="fuel-plan-rate-one">--</strong>
+                <strong id="fuel-plan-start-one">--</strong>
+                <strong id="fuel-plan-end-one">--</strong>
+                <strong id="fuel-plan-pit-one">--</strong>
+                <strong id="fuel-plan-add-one">--</strong>
+                <strong id="fuel-plan-total-one">--</strong>
+              </div>
+              <div class="fuel-stint-table-row">
+                <b class="fuel-stint-badge is-purple">2</b>
+                <strong id="fuel-plan-laps-two">--</strong>
+                <strong id="fuel-plan-rate-two">--</strong>
+                <strong id="fuel-plan-start-two">--</strong>
+                <strong id="fuel-plan-end-two">--</strong>
+                <strong id="fuel-plan-pit-two">--</strong>
+                <strong id="fuel-plan-add-two">--</strong>
+                <strong id="fuel-plan-total-two">--</strong>
+              </div>
+              <div class="fuel-stint-table-row">
+                <b class="fuel-stint-badge is-orange">3</b>
+                <strong>--</strong><strong>--</strong><strong>--</strong><strong>--</strong>
+                <strong>--</strong><strong>--</strong><strong>--</strong>
+              </div>
+            </div>
+          </article>
+
+          <div class="fuel-planner-bottom">
+            <article class="fuel-planner-panel fuel-scenario-comparison">
+              <h2>Fuel planer</h2>
+              <div class="fuel-scenario-cards">
+                <section class="fuel-scenario-card is-current">
+                  <h3>Current plan</h3>
+                  <div class="fuel-scenario-metrics">
+                    <div><span>Finish fuel</span><strong id="fuel-plan-current-finish">--</strong></div>
+                    <div><span>Total stops</span><strong id="fuel-plan-current-stops">--</strong></div>
+                    <div><span>Safety margin</span><strong id="fuel-plan-current-margin">--</strong></div>
+                  </div>
+                </section>
+                <section class="fuel-scenario-card">
+                  <h3>Option A <small>(Early stop)</small></h3>
+                  <div class="fuel-scenario-metrics">
+                    <div><span>Finish fuel</span><strong id="fuel-plan-early-finish">--</strong></div>
+                    <div><span>Total stops</span><strong id="fuel-plan-early-stops">--</strong></div>
+                    <div><span>Fuel added</span><strong id="fuel-plan-early-add">--</strong></div>
+                  </div>
+                </section>
+                <section class="fuel-scenario-card">
+                  <h3>Option B <small>(Late stop)</small></h3>
+                  <div class="fuel-scenario-metrics">
+                    <div><span>Finish fuel</span><strong id="fuel-plan-late-finish">--</strong></div>
+                    <div><span>Total stops</span><strong id="fuel-plan-late-stops">--</strong></div>
+                    <div><span>Fuel added</span><strong id="fuel-plan-late-add">--</strong></div>
+                  </div>
+                </section>
+                <section class="fuel-scenario-card">
+                  <h3>Option C <small>(One less stop)</small></h3>
+                  <div class="fuel-scenario-metrics">
+                    <div><span>Finish fuel</span><strong id="fuel-plan-save-finish">--</strong></div>
+                    <div><span>Total stops</span><strong id="fuel-plan-save-stops">--</strong></div>
+                    <div><span>Fuel added</span><strong id="fuel-plan-save-add">--</strong></div>
+                  </div>
+                </section>
+              </div>
+            </article>
+
+            <article class="fuel-planner-panel fuel-variables">
+              <h2>Variables</h2>
+              <div class="fuel-variable-list">
+                <div><span>Track temp</span><strong id="fuel-variable-track-temp">--</strong></div>
+                <div><span>Air temp</span><strong id="fuel-variable-air-temp">--</strong></div>
+                <div><span>Wind</span><strong id="fuel-variable-wind">--</strong></div>
+                <div><span>Track rubber</span><strong id="fuel-variable-track-rubber" class="is-positive">--</strong></div>
+                <div><span>Traffic</span><strong id="fuel-variable-traffic">--</strong></div>
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -955,35 +1192,93 @@
       </div>
 
       <div class="unit-preference-list">
-        <label class="unit-preference-row" for="speed-unit-select">
+        <div class="unit-preference-row">
+          <span class="unit-preference-copy"><strong>Refresh rate</strong><small>How often dashboard data is updated</small></span>
+          <div id="refresh-rate-control-secondary" class="refresh-rate-control refresh-rate-control-settings">
+            <button id="refresh-rate-toggle-secondary" class="refresh-rate-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="refresh-rate-current">
+                <span class="refresh-rate-value">30 Hz</span>
+                <svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg>
+              </span>
+            </button>
+            <div class="refresh-rate-menu" role="listbox" aria-label="Dashboard refresh rate" aria-hidden="true">
+              <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="10">10 Hz</button>
+              <button class="refresh-rate-option is-selected" type="button" role="option" aria-selected="true" data-hz="30">30 Hz</button>
+              <button class="refresh-rate-option" type="button" role="option" aria-selected="false" data-hz="60">60 Hz</button>
+            </div>
+          </div>
+        </div>
+        <div class="unit-preference-row">
           <span class="unit-preference-copy"><strong>Speed unit</strong><small>Vehicle speed and wind speed</small></span>
-          <select id="speed-unit-select" data-unit-preference="speed">
+          <select id="speed-unit-select" class="unit-dropdown-native" data-unit-preference="speed" tabindex="-1" aria-hidden="true">
             <option value="kmh">km/h</option>
             <option value="mph">mph</option>
           </select>
-        </label>
-        <label class="unit-preference-row" for="temperature-unit-select">
+          <div class="unit-dropdown" data-unit-dropdown="speed">
+            <button class="unit-dropdown-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="unit-dropdown-current"><span class="unit-dropdown-value">km/h</span><svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg></span>
+            </button>
+            <div class="unit-dropdown-menu" role="listbox" aria-label="Speed unit" aria-hidden="true">
+              <button class="unit-dropdown-option is-selected" type="button" role="option" aria-selected="true" data-value="kmh">km/h</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="mph">mph</button>
+            </div>
+          </div>
+        </div>
+        <div class="unit-preference-row">
           <span class="unit-preference-copy"><strong>Temperature unit</strong><small>Tyres, brakes, engine and weather</small></span>
-          <select id="temperature-unit-select" data-unit-preference="temperature">
+          <select id="temperature-unit-select" class="unit-dropdown-native" data-unit-preference="temperature" tabindex="-1" aria-hidden="true">
             <option value="celsius">Celsius (&deg;C)</option>
             <option value="fahrenheit">Fahrenheit (&deg;F)</option>
           </select>
-        </label>
-        <label class="unit-preference-row" for="pressure-unit-select">
+          <div class="unit-dropdown" data-unit-dropdown="temperature">
+            <button class="unit-dropdown-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="unit-dropdown-current"><span class="unit-dropdown-value">Celsius (&deg;C)</span><svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg></span>
+            </button>
+            <div class="unit-dropdown-menu" role="listbox" aria-label="Temperature unit" aria-hidden="true">
+              <button class="unit-dropdown-option is-selected" type="button" role="option" aria-selected="true" data-value="celsius">Celsius (&deg;C)</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="fahrenheit">Fahrenheit (&deg;F)</button>
+            </div>
+          </div>
+        </div>
+        <div class="unit-preference-row">
           <span class="unit-preference-copy"><strong>Pressure unit</strong><small>Live tyre pressure</small></span>
-          <select id="pressure-unit-select" data-unit-preference="pressure">
+          <select id="pressure-unit-select" class="unit-dropdown-native" data-unit-preference="pressure" tabindex="-1" aria-hidden="true">
             <option value="bar">bar</option>
             <option value="kpa">kPa</option>
             <option value="psi">psi</option>
           </select>
-        </label>
-        <label class="unit-preference-row" for="fuel-unit-select">
+          <div class="unit-dropdown" data-unit-dropdown="pressure">
+            <button class="unit-dropdown-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="unit-dropdown-current"><span class="unit-dropdown-value">bar</span><svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg></span>
+            </button>
+            <div class="unit-dropdown-menu" role="listbox" aria-label="Pressure unit" aria-hidden="true">
+              <button class="unit-dropdown-option is-selected" type="button" role="option" aria-selected="true" data-value="bar">bar</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="kpa">kPa</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="psi">psi</button>
+            </div>
+          </div>
+        </div>
+        <div class="unit-preference-row">
           <span class="unit-preference-copy"><strong>Fuel unit</strong><small>Current fuel volume</small></span>
-          <select id="fuel-unit-select" data-unit-preference="fuel">
+          <select id="fuel-unit-select" class="unit-dropdown-native" data-unit-preference="fuel" tabindex="-1" aria-hidden="true">
             <option value="liters">Liters</option>
             <option value="us-gallons">US gallons</option>
             <option value="imperial-gallons">Imperial gallons</option>
           </select>
+          <div class="unit-dropdown" data-unit-dropdown="fuel">
+            <button class="unit-dropdown-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="unit-dropdown-current"><span class="unit-dropdown-value">Liters</span><svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5"></path></svg></span>
+            </button>
+            <div class="unit-dropdown-menu" role="listbox" aria-label="Fuel unit" aria-hidden="true">
+              <button class="unit-dropdown-option is-selected" type="button" role="option" aria-selected="true" data-value="liters">Liters</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="us-gallons">US gallons</button>
+              <button class="unit-dropdown-option" type="button" role="option" aria-selected="false" data-value="imperial-gallons">Imperial gallons</button>
+            </div>
+          </div>
+        </div>
+        <label class="unit-preference-row" for="startup-collector-toggle">
+          <span class="unit-preference-copy"><strong>Background collector</strong><small>Start event collection when you sign in to Windows</small></span>
+          <input id="startup-collector-toggle" type="checkbox">
         </label>
       </div>
 
@@ -999,6 +1294,7 @@
 
   <script src="/car-brand-logos.js?v=20260714"></script>
   <script src="/car-brand-logos-extra.js?v=20260714"></script>
-  <script src="/app.js?v=20260717-hide-empty-repair"></script>
+  <script src="/ui-utils.js?v=20260720"></script>
+  <script src="/app.js?v=20260724-car-pit-three-columns"></script>
 </body>
 </html>

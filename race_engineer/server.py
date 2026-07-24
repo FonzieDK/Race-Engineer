@@ -14,12 +14,13 @@ import time
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import socket
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+from race_engineer.windows_automation import invoke_iracing_leave_seat, invoke_iracing_take_seat
 from urllib.request import Request, urlopen
 
 from race_engineer.events.replay_scanner import ReplayEventScanner
@@ -49,6 +50,7 @@ REPLAY_EVENT_SCANNER = ReplayEventScanner(
     enabled=False,
 )
 REFRESH_RATES_HZ = (10, 30, 60)
+MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 IRACING_TRACK_MAP_BASE = "https://members-assets.iracing.com/public/track-maps"
 _official_track_svg_cache: dict[tuple[int, str], str | None] = {}
 _official_track_svg_cache_lock = Lock()
@@ -507,6 +509,14 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             self._send_file(WEB_DIR / "car-brand-logos-extra.js", "application/javascript; charset=utf-8")
             return
 
+        if request_path == "/ui-utils.js":
+            self._send_file(WEB_DIR / "ui-utils.js", "application/javascript; charset=utf-8")
+            return
+
+        if request_path == "/IMG/car-status-gt-top-view.png":
+            self._send_file(WEB_DIR / "IMG" / "car-status-gt-top-view.png", "image/png")
+            return
+
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
     def do_POST(self) -> None:
@@ -536,8 +546,24 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             self._set_pit_tire_change()
             return
 
+        if request_path == "/api/pit/tire-compound":
+            self._set_pit_tire_compound()
+            return
+
         if request_path == "/api/pit/windscreen-tearoff":
             self._set_pit_windscreen_tearoff()
+            return
+
+        if request_path == "/api/pit/fuel":
+            self._set_pit_fuel()
+            return
+
+        if request_path == "/api/iracing/take-seat":
+            self._take_iracing_seat()
+            return
+
+        if request_path == "/api/iracing/leave-seat":
+            self._leave_iracing_seat()
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
@@ -545,18 +571,27 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return
 
-    def _send_json(self, payload: dict[str, Any]) -> None:
+    def _send_json(
+        self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK
+    ) -> None:
         body = json.dumps(payload).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def _read_json_body(self) -> dict[str, Any]:
-        content_length = int(self.headers.get("Content-Length", "0") or 0)
+        try:
+            content_length = int(self.headers.get("Content-Length", "0") or 0)
+        except ValueError as exc:
+            raise ValueError("Invalid Content-Length") from exc
         if content_length <= 0:
             return {}
+        if content_length > MAX_JSON_BODY_BYTES:
+            raise OverflowError(
+                f"Request body exceeds the {MAX_JSON_BODY_BYTES // (1024 * 1024)} MB limit"
+            )
 
         body = self.rfile.read(content_length)
         return json.loads(body.decode("utf-8"))
@@ -566,17 +601,17 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
             car_number = str(payload.get("car_number", "")).strip()
             if not car_number:
-                self._send_json({"ok": False, "error": "Missing car_number"})
+                self._send_json({"ok": False, "error": "Missing car_number"}, HTTPStatus.BAD_REQUEST)
                 return
 
             if telemetry_reader is None or not telemetry_reader.is_connected():
-                self._send_json({"ok": False, "error": "iRacing telemetry is not connected"})
+                self._send_json({"ok": False, "error": "iRacing telemetry is not connected"}, HTTPStatus.SERVICE_UNAVAILABLE)
                 return
 
             switched = telemetry_reader.focus_camera_on_car(car_number)
             self._send_json({"ok": bool(switched), "car_number": car_number})
         except Exception as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+            self._send_api_exception(exc)
 
     def _play_event_replay(self) -> None:
         try:
@@ -632,10 +667,8 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
                 "position_timing_compensation": position_timing_compensation,
                 "replay_duration": before_seconds + after_seconds,
             })
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
         except Exception as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+            self._send_api_exception(exc)
 
     def _save_event(self) -> None:
         try:
@@ -646,8 +679,8 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
                 raise ValueError("Event does not belong to the active race")
             event = EVENT_STORE.add(payload)
             self._send_json({"ok": True, "event": event})
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self._send_api_exception(exc)
 
     def _import_iracing_events(self) -> None:
         try:
@@ -671,10 +704,8 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
                 "event_count": len(EVENT_STORE.all(session_key)),
                 "events": EVENT_STORE.all(session_key),
             })
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
         except Exception as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+            self._send_api_exception(exc)
 
     def _set_refresh_rate(self) -> None:
         try:
@@ -682,8 +713,8 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             set_refresh_rate(hz)
             publish_snapshot()
             self._send_json({"ok": True, "hz": hz})
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self._send_api_exception(exc)
 
     def _set_pit_tire_change(self) -> None:
         try:
@@ -701,10 +732,25 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             if not sent:
                 raise ValueError("iRacing did not accept the pit command")
             self._send_json({"ok": True, "wheel": wheel, "enabled": enabled})
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
         except Exception as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+            self._send_api_exception(exc)
+
+    def _set_pit_tire_compound(self) -> None:
+        try:
+            compound = str(
+                self._read_json_body().get("compound") or ""
+            ).strip().lower()
+            if compound not in {"dry", "wet"}:
+                raise ValueError("compound must be dry or wet")
+            if telemetry_reader is None or not telemetry_reader.is_connected():
+                raise ValueError("iRacing telemetry is not connected")
+
+            sent = telemetry_reader.set_tire_compound(compound)
+            if not sent:
+                raise ValueError("iRacing did not accept the tire compound command")
+            self._send_json({"ok": True, "compound": compound, "tires": "all"})
+        except Exception as exc:
+            self._send_api_exception(exc)
 
     def _set_pit_windscreen_tearoff(self) -> None:
         try:
@@ -718,10 +764,51 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
             if not sent:
                 raise ValueError("iRacing did not accept the pit command")
             self._send_json({"ok": True, "enabled": enabled})
-        except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send_json({"ok": False, "error": str(exc)})
         except Exception as exc:
-            self._send_json({"ok": False, "error": str(exc)})
+            self._send_api_exception(exc)
+
+    def _set_pit_fuel(self) -> None:
+        try:
+            liters = self._read_json_body().get("liters")
+            if isinstance(liters, bool) or not isinstance(liters, (int, float)):
+                raise ValueError("liters must be a number")
+            if telemetry_reader is None or not telemetry_reader.is_connected():
+                raise ValueError("iRacing telemetry is not connected")
+
+            sent, applied_liters = telemetry_reader.set_pit_fuel(liters)
+            if not sent:
+                raise ValueError("iRacing did not accept the pit command")
+            self._send_json({"ok": True, "liters": applied_liters})
+        except Exception as exc:
+            self._send_api_exception(exc)
+
+    def _take_iracing_seat(self) -> None:
+        try:
+            invoke_iracing_take_seat()
+            self._send_json({"ok": True})
+        except Exception as exc:
+            self._send_api_exception(exc)
+
+    def _leave_iracing_seat(self) -> None:
+        try:
+            invoke_iracing_leave_seat()
+            self._send_json({"ok": True})
+        except Exception as exc:
+            self._send_api_exception(exc)
+
+    def _send_api_exception(self, exc: Exception) -> None:
+        if isinstance(exc, OverflowError):
+            status = HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+        elif isinstance(exc, (ValueError, TypeError, json.JSONDecodeError)):
+            message = str(exc).lower()
+            status = (
+                HTTPStatus.SERVICE_UNAVAILABLE
+                if "not connected" in message
+                else HTTPStatus.BAD_REQUEST
+            )
+        else:
+            status = HTTPStatus.INTERNAL_SERVER_ERROR
+        self._send_json({"ok": False, "error": str(exc)}, status)
 
     def _stream_events(self) -> None:
         subscriber: Queue[str] = Queue(maxsize=1)
@@ -841,19 +928,9 @@ class RaceEngineerHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     config = runtime_config
-    def detect_local_ip() -> str:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("8.8.8.8", 80))
-                return s.getsockname()[0]
-        except Exception:
-            return "127.0.0.1"
-
-    host_config = config.get("host")
-    if not host_config or str(host_config).lower() in ("auto", "detect"):
-        host = detect_local_ip()
-    else:
-        host = str(host_config)
+    # These endpoints can control the simulator. Keep them inaccessible from
+    # the LAN; Electron and the browser UI both run on this machine.
+    host = "127.0.0.1"
 
     port = int(config.get("port", 8080))
 

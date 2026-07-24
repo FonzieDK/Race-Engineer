@@ -7,11 +7,25 @@ const unitSettingsToggleEl = document.getElementById("unit-settings-toggle");
 const unitSettingsModalEl = document.getElementById("unit-settings-modal");
 const unitSettingsPanelEl = unitSettingsModalEl?.querySelector(".unit-modal-panel");
 const unitPreferenceSelects = Array.from(document.querySelectorAll("[data-unit-preference]"));
+const unitDropdowns = Array.from(document.querySelectorAll(".unit-dropdown[data-unit-dropdown]"));
 const unitPresetButtons = Array.from(document.querySelectorAll("[data-unit-preset]"));
 const unitModalCloseButtons = Array.from(document.querySelectorAll("[data-unit-modal-close]"));
 const unitSettingsResetEl = document.getElementById("unit-settings-reset");
+const startupCollectorToggleEl = document.getElementById("startup-collector-toggle");
 const fullscreenToggleEl = document.getElementById("fullscreen-toggle");
 const restartRaceEngineerEl = document.getElementById("restart-race-engineer");
+const overlayTitleEl = document.getElementById("overlay-title");
+const overlayFullscreenEl = document.getElementById("overlay-fullscreen");
+const overlayLockEl = document.getElementById("overlay-lock");
+const overlayCloseEl = document.getElementById("overlay-close");
+const overlayOpacityEl = document.getElementById("overlay-opacity");
+const OVERLAY_SCREENS = new Set(["overview", "leaderboard", "map", "car-setup-pit", "fuel"]);
+const requestedOverlayScreen = new window.URLSearchParams(window.location.search).get("overlay");
+const isOverlayMode = OVERLAY_SCREENS.has(requestedOverlayScreen);
+if (isOverlayMode) {
+  document.documentElement.classList.add("overlay-mode");
+  document.body.classList.add("overlay-mode");
+}
 const iracingPauseEl = document.getElementById("iracing-pause");
 const sessionTimeEl = document.getElementById("session-time");
 const ingameTimeEl = document.getElementById("ingame-time");
@@ -46,31 +60,194 @@ const statusTireLfWearBarEl = document.getElementById("status-tire-lf-wear-bar")
 const statusTireRfWearBarEl = document.getElementById("status-tire-rf-wear-bar");
 const statusTireLrWearBarEl = document.getElementById("status-tire-lr-wear-bar");
 const statusTireRrWearBarEl = document.getElementById("status-tire-rr-wear-bar");
-const statusTireLfPressureEl = document.getElementById("status-tire-lf-pressure");
-const statusTireRfPressureEl = document.getElementById("status-tire-rf-pressure");
-const statusTireLrPressureEl = document.getElementById("status-tire-lr-pressure");
-const statusTireRrPressureEl = document.getElementById("status-tire-rr-pressure");
-const statusBatteryEl = document.getElementById("status-battery");
-const statusBatteryBarEl = document.getElementById("status-battery-bar");
-const statusBatteryPanelEl = document.getElementById("status-battery-panel");
+const statusTirePressureGauges = Object.fromEntries(
+  Array.from(document.querySelectorAll(".tyre-pressure-gauge[data-pressure-wheel]"))
+    .map((element) => [element.dataset.pressureWheel, element]),
+);
+const pressureUnitEls = Array.from(document.querySelectorAll("[data-pressure-unit]"));
 const statusEngineTempEl = document.getElementById("status-engine-temp");
 const statusEngineTempBarEl = document.getElementById("status-engine-temp-bar");
-const statusRpmValueEl = document.getElementById("status-rpm-value");
+const statusEngineTempChartEl = document.getElementById("status-engine-temp-chart");
+const statusEngineTempAreaEl = document.getElementById("status-engine-temp-area");
+const statusEngineTempLineEl = document.getElementById("status-engine-temp-line");
+const statusEngineTempStartEl = document.getElementById("status-engine-temp-start");
+const statusEngineTempCurrentEl = document.getElementById("status-engine-temp-current");
+const statusEngineTempScaleEls = Array.from(
+  document.querySelectorAll("#status-engine-temp-scale span"),
+);
+const statusOilTempEl = document.getElementById("status-oil-temp");
+const statusOilTempChartEl = document.getElementById("status-oil-temp-chart");
+const statusOilTempAreaEl = document.getElementById("status-oil-temp-area");
+const statusOilTempLineEl = document.getElementById("status-oil-temp-line");
+const statusOilTempStartEl = document.getElementById("status-oil-temp-start");
+const statusOilTempCurrentEl = document.getElementById("status-oil-temp-current");
+const statusOilTempScaleEls = Array.from(document.querySelectorAll("#status-oil-temp-scale span"));
+const statusOilTempRangeStartEl = document.getElementById("status-oil-temp-range-start");
 const statusRpmBarEl = document.getElementById("status-rpm-bar");
 const statusFuelValueEl = document.getElementById("status-fuel-value");
 const statusFuelBarEl = document.getElementById("status-fuel-bar");
 const statusEmptyLapEl = document.getElementById("status-empty-lap");
+const statusWaterTempEl = document.getElementById("status-water-temp");
+const statusWaterTempChartEl = document.getElementById("status-water-temp-chart");
+const statusWaterTempAreaEl = document.getElementById("status-water-temp-area");
+const statusWaterTempLineEl = document.getElementById("status-water-temp-line");
+const statusWaterTempStartEl = document.getElementById("status-water-temp-start");
+const statusWaterTempCurrentEl = document.getElementById("status-water-temp-current");
+const statusWaterTempScaleEls = Array.from(
+  document.querySelectorAll(".car-status-metric-water .engine-sparkline-scale span"),
+);
 const statusTyreCards = Object.fromEntries(
   Array.from(document.querySelectorAll(".status-tyre[data-tire]"))
     .map((element) => [element.dataset.tire, element]),
 );
 const statusIndicators = Array.from(document.querySelectorAll("[data-status-for]"));
+
+const WATER_TEMP_HISTORY_KEY = "race-engineer.water-temperature-history.v1";
+const WATER_TEMP_HISTORY_MS = 60 * 60 * 1000;
+const WATER_TEMP_SAMPLE_MS = 5 * 1000;
+let waterTemperatureHistory = [];
+let waterTemperatureSessionKey = null;
+let lastWaterTemperatureHistorySaveAt = 0;
+
+try {
+  const savedWaterTemperatureHistory = JSON.parse(
+    window.localStorage?.getItem(WATER_TEMP_HISTORY_KEY) || "null",
+  );
+  if (savedWaterTemperatureHistory && Array.isArray(savedWaterTemperatureHistory.points)) {
+    waterTemperatureSessionKey = savedWaterTemperatureHistory.sessionKey || null;
+    waterTemperatureHistory = savedWaterTemperatureHistory.points
+      .filter((point) => Number.isFinite(point?.time) && Number.isFinite(point?.value));
+  }
+} catch {
+  // A disabled or corrupt local store must not stop live telemetry rendering.
+}
+
+function saveWaterTemperatureHistory() {
+  try {
+    window.localStorage?.setItem(WATER_TEMP_HISTORY_KEY, JSON.stringify({
+      sessionKey: waterTemperatureSessionKey,
+      points: waterTemperatureHistory,
+    }));
+  } catch {
+    // History remains available in memory when persistent storage is unavailable.
+  }
+}
+
+function renderWaterTemperatureHistory() {
+  if (!statusWaterTempLineEl || !statusWaterTempAreaEl) return;
+  if (waterTemperatureHistory.length === 0) {
+    statusEngineTempLineEl?.setAttribute("d", "");
+    statusEngineTempAreaEl?.setAttribute("d", "");
+    statusWaterTempLineEl.setAttribute("d", "");
+    statusWaterTempAreaEl.setAttribute("d", "");
+    setText(statusEngineTempStartEl, "--");
+    setText(statusEngineTempCurrentEl, "--");
+    setText(statusWaterTempStartEl, "--");
+    setText(statusWaterTempCurrentEl, "--");
+    return;
+  }
+
+  const values = waterTemperatureHistory.map((point) => point.value);
+  setText(statusEngineTempStartEl, formatTemperature(values[0], 0));
+  setText(statusEngineTempCurrentEl, formatTemperature(values[values.length - 1], 0));
+  setText(statusWaterTempStartEl, formatTemperature(values[0], 0));
+  setText(statusWaterTempCurrentEl, formatTemperature(values[values.length - 1], 0));
+  const scaleMaximum = Math.max(50, Math.ceil(Math.max(...values) / 25) * 25);
+  const firstTime = waterTemperatureHistory[0].time;
+  const lastTime = waterTemperatureHistory[waterTemperatureHistory.length - 1].time;
+  const timeSpan = Math.max(1, lastTime - firstTime);
+  const coordinates = waterTemperatureHistory.map((point, index) => {
+    const x = waterTemperatureHistory.length === 1
+      ? 150
+      : ((point.time - firstTime) / timeSpan) * 150;
+    const y = 49 - (Math.max(0, Math.min(scaleMaximum, point.value)) / scaleMaximum) * 44;
+    return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+
+  const linePath = coordinates;
+  statusEngineTempLineEl?.setAttribute("d", linePath);
+  statusEngineTempAreaEl?.setAttribute("d", `${linePath} L150 54 L0 54 Z`);
+  statusWaterTempLineEl.setAttribute("d", linePath);
+  statusWaterTempAreaEl.setAttribute("d", `${linePath} L150 54 L0 54 Z`);
+  statusEngineTempScaleEls.forEach((element, index) => {
+    const celsiusValue = scaleMaximum * (1 - index / 2);
+    setText(element, formatTemperature(celsiusValue, 0, false).replace(/[^\d.-]/g, ""));
+  });
+  statusWaterTempScaleEls.forEach((element, index) => {
+    const celsiusValue = scaleMaximum * (1 - index / 2);
+    setText(element, formatTemperature(celsiusValue, 0, false).replace(/[^\d.-]/g, ""));
+  });
+  if (statusWaterTempChartEl) {
+    const start = formatTemperature(values[0], 0);
+    const current = formatTemperature(values[values.length - 1], 0);
+    statusWaterTempChartEl.setAttribute(
+      "aria-label",
+      `Water temperature, start ${start}, current ${current}, last hour`,
+    );
+    statusEngineTempChartEl?.setAttribute(
+      "aria-label",
+      `Engine temperature, start ${start}, current ${current}, last hour`,
+    );
+  }
+}
+
+function recordWaterTemperature(value, sessionKey, now = Date.now()) {
+  if (!Number.isFinite(value)) return;
+  const normalizedSessionKey = sessionKey || null;
+  let sessionChanged = false;
+  if (waterTemperatureSessionKey !== normalizedSessionKey) {
+    waterTemperatureSessionKey = normalizedSessionKey;
+    waterTemperatureHistory = [];
+    sessionChanged = true;
+  }
+
+  waterTemperatureHistory = waterTemperatureHistory.filter(
+    (point) => point.time >= now - WATER_TEMP_HISTORY_MS && point.time <= now,
+  );
+  const lastPoint = waterTemperatureHistory[waterTemperatureHistory.length - 1];
+  if (!lastPoint || now - lastPoint.time >= WATER_TEMP_SAMPLE_MS) {
+    waterTemperatureHistory.push({ time: now, value });
+  } else if (waterTemperatureHistory.length === 1) {
+    waterTemperatureHistory.push({ time: now, value });
+  } else {
+    waterTemperatureHistory[waterTemperatureHistory.length - 1] = { time: now, value };
+  }
+  if (sessionChanged || now - lastWaterTemperatureHistorySaveAt >= WATER_TEMP_SAMPLE_MS) {
+    saveWaterTemperatureHistory();
+    lastWaterTemperatureHistorySaveAt = now;
+  }
+  renderWaterTemperatureHistory();
+}
+
+if (startupCollectorToggleEl && window.raceEngineer?.getStartupEnabled) {
+  window.raceEngineer.getStartupEnabled().then((enabled) => {
+    startupCollectorToggleEl.checked = Boolean(enabled);
+  });
+  startupCollectorToggleEl.addEventListener("change", async () => {
+    startupCollectorToggleEl.disabled = true;
+    try {
+      startupCollectorToggleEl.checked = await window.raceEngineer.setStartupEnabled(
+        startupCollectorToggleEl.checked,
+      );
+    } finally {
+      startupCollectorToggleEl.disabled = false;
+    }
+  });
+}
 const pitTireChangeButtons = Array.from(document.querySelectorAll(".pit-tire-toggle[data-wheel]"));
+const pitAllTiresToggleEl = document.querySelector("[data-pit-all-tires-toggle]");
 const pitCarTearoffToggleEl = document.getElementById("pit-car-windscreen-tearoff");
 const pitWindscreenTearoffEl = document.getElementById("pit-windscreen-tearoff");
+const pitCrewTakeoverToggleEls = Array.from(document.querySelectorAll("[data-pit-crew-takeover-toggle]"));
+const pitCrewTakeoverEl = document.getElementById("pit-crew-takeover");
 const pitFastRepairToggleEls = Array.from(document.querySelectorAll("[data-pit-fast-repair-toggle]"));
 const pitFastRepairEl = document.getElementById("pit-fast-repair");
 const pitTireChangeEstimateEl = document.getElementById("pit-tire-change-estimate");
+const pitSummaryTimeEl = document.getElementById("pit-summary-time");
+const pitSummaryTiresEl = document.getElementById("pit-summary-tires");
+const pitSummaryTireStateEl = document.getElementById("pit-summary-tire-state");
+const pitSummaryRepairsEl = document.getElementById("pit-summary-repairs");
+const pitSummaryStatusTextEl = document.getElementById("pit-summary-status-text");
 const pitCarIcons = Array.from(document.querySelectorAll("[data-pit-car-icon]"));
 const pitFuelAddEl = document.getElementById("pit-fuel-add");
 const pitFuelGaugeEl = document.getElementById("pit-fuel-gauge");
@@ -80,16 +257,27 @@ const pitFuelScaleFillEl = document.getElementById("pit-fuel-scale-fill");
 const pitFuelAddSummaryEl = document.getElementById("pit-fuel-add-summary");
 const pitFuelAddedValueEl = document.getElementById("pit-fuel-added-value");
 const pitFuelTotalValueEl = document.getElementById("pit-fuel-total-value");
+const fuelCalStatusEl = document.getElementById("fuel-cal-status");
+const fuelCalReserveEl = document.getElementById("fuel-cal-reserve");
+const fuelCalModeButtons = Array.from(document.querySelectorAll("[data-fuel-mode]"));
+const fuelCalTankFillEl = document.getElementById("fuel-cal-tank-fill");
+const fuelCalRequiredMarkerEl = document.getElementById("fuel-cal-required-marker");
+const fuelCalConfidenceEl = document.getElementById("fuel-cal-confidence");
+let fuelCalMode = "balanced";
+let latestFuelTelemetry = {};
 let pitTireChangeEstimates = { 0: 0, 1: 5, 2: 10, 3: 15, 4: 20 };
 const sessionTrackNameEl = document.getElementById("session-track-name");
 const windSpeedEl = document.getElementById("wind-speed");
+const windDirectionArrowEl = document.getElementById("wind-direction-arrow");
 const humidityEl = document.getElementById("humidity");
 const windDirectionEl = document.getElementById("wind-direction");
 const airTempEl = document.getElementById("air-temp");
 const trackTempEl = document.getElementById("track-temp");
+const cloudCoverEl = document.getElementById("cloud-cover");
+const rainStateEl = document.getElementById("rain-state");
+const precipitationEl = document.getElementById("precipitation");
+const fogEl = document.getElementById("fog");
 const trackWetnessEl = document.getElementById("track-wetness");
-const trackSkiesEl = document.getElementById("track-skies");
-const trackDeclaredWetEl = document.getElementById("track-declared-wet");
 const testWeatherDashboardEl = document.querySelector(".test-weather-dashboard");
 const testWeatherTrackNameEl = document.getElementById("test-weather-track-name");
 const testWeatherLiveStatusEl = document.getElementById("test-weather-live-status");
@@ -108,11 +296,340 @@ const testWeatherCloudLayerEl = document.getElementById("test-weather-cloud-laye
 const testWeatherRadarCanvasEl = document.getElementById("test-weather-radar-canvas");
 const testWeatherRadarBadgeEl = document.getElementById("test-weather-radar-badge");
 const testWeatherZoomToggleEl = document.getElementById("test-weather-zoom-toggle");
+const testPitEl = document.querySelector(".test-pit");
+const testStatusCopyEls = Array.from(document.querySelectorAll("[data-test-status-copy]"));
+const carStatusSourceEl = document.querySelector(
+  '[data-screen-panel="overview"] .car-status-module',
+);
+const testTireChangeStates = new Map();
+const testTireChangePending = new Set();
+const testTireChangeErrors = new Map();
+const testTireChangeSyncAfter = new Map();
+
+function updateTestTireToggleVisual(wheel) {
+  testStatusCopyEls.forEach((target) => {
+    const toggle = Array.from(target.querySelectorAll("[data-test-status-tire]"))
+      .find((button) => button.dataset.testStatusTire === wheel);
+    if (!toggle) return;
+    const selected = testTireChangeStates.get(wheel) === true;
+    toggle.setAttribute("aria-pressed", String(selected));
+    toggle.disabled = testTireChangePending.has(wheel);
+    toggle.classList.toggle("is-command-pending", testTireChangePending.has(wheel));
+    toggle.classList.toggle("has-command-error", testTireChangeErrors.has(wheel));
+    toggle.title = testTireChangeErrors.get(wheel)
+      || `${wheel.toUpperCase()} tire change ${selected ? "selected" : "cleared"} in iRacing`;
+  });
+}
+
+function syncTestTireChangesFromTelemetry(tireChanges) {
+  if (!tireChanges || typeof tireChanges !== "object") return;
+  Object.entries(tireChanges).forEach(([wheel, selected]) => {
+    if (typeof selected !== "boolean") return;
+    if (testTireChangePending.has(wheel)) return;
+    if (Date.now() < (testTireChangeSyncAfter.get(wheel) || 0)) return;
+    testTireChangeStates.set(wheel, selected);
+    updateTestTireToggleVisual(wheel);
+  });
+}
+
+function syncTestTireCompoundFromTelemetry(compound) {
+  if (compound !== "dry" && compound !== "wet") return;
+  document.querySelectorAll("[data-test-compound]").forEach((button) => {
+    const isSelected = button.dataset.testCompound === compound;
+    button.setAttribute("aria-pressed", String(isSelected));
+    button.disabled = isSelected;
+    button.classList.remove("has-command-error");
+  });
+}
+
+async function selectTestTireCompound(compound, selectedButton, compoundGrid) {
+  const compoundButtons = Array.from(
+    compoundGrid.querySelectorAll("[data-test-compound]"),
+  );
+  compoundButtons.forEach((button) => {
+    button.disabled = true;
+    button.classList.remove("has-command-error");
+  });
+
+  try {
+    const response = await fetch("/api/pit/tire-compound", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ compound }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    compoundButtons.forEach((button) => {
+      const isSelected = button === selectedButton;
+      button.setAttribute("aria-pressed", String(isSelected));
+      button.disabled = isSelected;
+    });
+    ["lf", "rf", "lr", "rr"].forEach((wheel) => {
+      testTireChangeStates.set(wheel, true);
+      testTireChangeSyncAfter.set(wheel, Date.now() + 1500);
+      updateTestTireToggleVisual(wheel);
+    });
+  } catch (error) {
+    selectedButton.classList.add("has-command-error");
+    selectedButton.title = error.message || "Unable to select tire compound in iRacing";
+    compoundButtons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+async function toggleTestTireChange(wheel) {
+  if (testTireChangePending.has(wheel)) return;
+  const wasSelected = testTireChangeStates.get(wheel) === true;
+  const enabled = !wasSelected;
+  const telemetrySyncDeadline = Date.now() + 1500;
+  ["lf", "rf", "lr", "rr"].forEach((position) => {
+    testTireChangeSyncAfter.set(position, telemetrySyncDeadline);
+  });
+  testTireChangeStates.set(wheel, enabled);
+  testTireChangePending.add(wheel);
+  testTireChangeErrors.delete(wheel);
+  updateTestTireToggleVisual(wheel);
+
+  try {
+    const response = await fetch("/api/pit/tire-change", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wheel, enabled }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    testTireChangeStates.set(wheel, enabled);
+    const sourceToggle = pitTireChangeButtons.find((button) => button.dataset.wheel === wheel);
+    sourceToggle?.setAttribute("aria-pressed", String(enabled));
+  } catch (error) {
+    testTireChangeErrors.set(
+      wheel,
+      error.message || "Unable to send tire-change command to iRacing",
+    );
+  } finally {
+    testTireChangePending.delete(wheel);
+    updateTestTireToggleVisual(wheel);
+  }
+}
+
+async function toggleTestWindscreenTearoff(button) {
+  if (button.classList.contains("is-command-pending")) return;
+  const wasSelected = button.getAttribute("aria-pressed") === "true";
+  const enabled = !wasSelected;
+  button.classList.add("is-command-pending");
+  button.classList.remove("has-command-error");
+  button.disabled = true;
+  button.setAttribute("aria-pressed", String(enabled));
+
+  try {
+    const response = await fetch("/api/pit/windscreen-tearoff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    button.title = enabled
+      ? "Windscreen tear-off selected in iRacing"
+      : "Windscreen tear-off cleared in iRacing";
+  } catch (error) {
+    button.setAttribute("aria-pressed", String(wasSelected));
+    button.classList.add("has-command-error");
+    button.title = error.message || "Unable to send tear-off command to iRacing";
+  } finally {
+    button.classList.remove("is-command-pending");
+    button.disabled = false;
+  }
+}
+
+function renderTestStatusCopies() {
+  if (!carStatusSourceEl) return;
+  testStatusCopyEls.forEach((target) => {
+    const statusCopy = carStatusSourceEl.cloneNode(true);
+    statusCopy.querySelector(".section-label").textContent = target.dataset.copyTitle;
+    statusCopy.querySelector(".tyre-connector-fr")
+      ?.setAttribute("d", "M724 91H677V190H630");
+    statusCopy.querySelector(".tyre-connector-rr")
+      ?.setAttribute("d", "M724 536H684V452H645");
+    statusCopy.querySelectorAll(".reference-corner > b").forEach((cornerLabel) => {
+      cornerLabel.textContent = { FR: "RF", RL: "LR" }[cornerLabel.textContent.trim()]
+        || cornerLabel.textContent;
+    });
+    statusCopy.querySelectorAll(".status-tyre").forEach((tireCard) => {
+      tireCard.querySelector("span").textContent = "TIRE";
+      tireCard.querySelector("small").remove();
+      const wheel = tireCard.dataset.tire;
+      const changeToggle = document.createElement("button");
+      if (!testTireChangeStates.has(wheel)) {
+        const sourceToggle = pitTireChangeButtons.find((button) => button.dataset.wheel === wheel);
+        testTireChangeStates.set(
+          wheel,
+          sourceToggle?.getAttribute("aria-pressed") === "true",
+        );
+      }
+      const isSelected = testTireChangeStates.get(wheel);
+      changeToggle.type = "button";
+      changeToggle.className = "test-status-tire-toggle";
+      changeToggle.dataset.testStatusTire = wheel;
+      changeToggle.setAttribute("aria-pressed", String(isSelected));
+      changeToggle.setAttribute("aria-label", `Toggle ${wheel.toUpperCase()} tire change`);
+      changeToggle.disabled = testTireChangePending.has(wheel);
+      changeToggle.classList.toggle("is-command-pending", testTireChangePending.has(wheel));
+      changeToggle.classList.toggle("has-command-error", testTireChangeErrors.has(wheel));
+      changeToggle.title = testTireChangeErrors.get(wheel)
+        || `${wheel.toUpperCase()} tire change ${isSelected ? "selected" : "cleared"} in iRacing`;
+      changeToggle.textContent = "CHANGE";
+      changeToggle.addEventListener("click", () => toggleTestTireChange(wheel));
+      tireCard.querySelector("strong").replaceWith(changeToggle);
+    });
+    statusCopy.querySelectorAll(".corner-wear em").forEach((estimate) => {
+      const label = document.createElement("span");
+      const value = document.createElement("b");
+      label.textContent = "EST.";
+      value.textContent = "+2.5 S";
+      estimate.style.setProperty("display", "inline-flex", "important");
+      estimate.style.setProperty("opacity", "1", "important");
+      estimate.style.setProperty("visibility", "visible", "important");
+      estimate.style.setProperty("color", "#54cde1", "important");
+      label.style.setProperty("color", "#54cde1", "important");
+      label.style.setProperty("opacity", "1", "important");
+      value.style.setProperty("color", "#ffffff", "important");
+      value.style.setProperty("opacity", "1", "important");
+      estimate.replaceChildren(label, value);
+    });
+    const repairButtonSource = document.querySelector(
+      ".test-pit > .test-pit-car-grid .test-repair",
+    );
+    const copiedCarGrid = statusCopy.querySelector(".reference-car-status");
+    if (repairButtonSource && copiedCarGrid) {
+      const repairButton = repairButtonSource.cloneNode(true);
+      const rightTireStack = document.createElement("div");
+      rightTireStack.className = "test-right-tire-stack";
+      const compoundGroup = document.createElement("div");
+      compoundGroup.className = "test-compound-group";
+      const rightFront = copiedCarGrid.querySelector(".reference-corner-fr");
+      const rightRear = copiedCarGrid.querySelector(".reference-corner-rr");
+      if (rightFront) rightTireStack.append(rightFront);
+      ["DRY", "WET"].forEach((compound) => {
+        const compoundButton = document.createElement("button");
+        compoundButton.type = "button";
+        compoundButton.className = `test-compound-card test-compound-card-${compound.toLowerCase()}`;
+        compoundButton.dataset.testCompound = compound.toLowerCase();
+        compoundButton.setAttribute("aria-pressed", "false");
+        compoundButton.textContent = compound;
+        compoundButton.addEventListener("click", () => {
+          if (compoundButton.disabled) return;
+          selectTestTireCompound(compound.toLowerCase(), compoundButton, copiedCarGrid);
+        });
+        compoundGroup.append(compoundButton);
+      });
+      rightTireStack.append(compoundGroup);
+      if (rightRear) rightTireStack.append(rightRear);
+      copiedCarGrid.append(rightTireStack);
+      copiedCarGrid.append(repairButton);
+      const topRepairButton = repairButton.cloneNode(true);
+      topRepairButton.classList.add("test-repair-top");
+      topRepairButton.classList.add("test-windscreen-tearoff");
+      topRepairButton.removeAttribute("data-test-service-toggle");
+      topRepairButton.hidden = false;
+      topRepairButton.setAttribute("aria-hidden", "false");
+      topRepairButton.setAttribute("aria-label", "Toggle windshield tearoff");
+      topRepairButton.querySelector("span").innerHTML = [
+        '<svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">',
+        '<path d="M5 19 8 6h16l3 13H5Z"></path>',
+        '<path d="M9 16c4-4 10-5 15-2"></path>',
+        "</svg>",
+      ].join("");
+      topRepairButton.querySelector("b").textContent = "WINDSHIELD";
+      topRepairButton.querySelector("small").textContent = "TEAROFF";
+      copiedCarGrid.append(topRepairButton);
+      repairButton.addEventListener("click", () => {
+        const isSelected = repairButton.getAttribute("aria-pressed") === "true";
+        repairButton.setAttribute("aria-pressed", String(!isSelected));
+      });
+      topRepairButton.addEventListener(
+        "click",
+        () => toggleTestWindscreenTearoff(topRepairButton),
+      );
+    }
+    statusCopy.querySelectorAll("[id]").forEach((element) => {
+      element.dataset.sourceId = element.id;
+      element.removeAttribute("id");
+    });
+    statusCopy.querySelectorAll("[aria-describedby]").forEach(
+      (element) => element.removeAttribute("aria-describedby"),
+    );
+    statusCopy.setAttribute("aria-label", target.dataset.copyTitle);
+    target.replaceChildren(statusCopy);
+  });
+}
+
+function syncTestStatusCopyTelemetry() {
+  if (!carStatusSourceEl) return;
+  const sourceElements = Array.from(carStatusSourceEl.querySelectorAll("[id]"));
+  testStatusCopyEls.forEach((target) => {
+    const copyElements = new Map(
+      Array.from(target.querySelectorAll("[data-source-id]"))
+        .map((element) => [element.dataset.sourceId, element]),
+    );
+    sourceElements.forEach((source) => {
+      const copy = copyElements.get(source.id);
+      if (!copy || copy.closest(".status-tyre, .corner-wear")) return;
+      if (source.children.length === 0) copy.textContent = source.textContent;
+      ["style", "d", "data-state", "aria-label"].forEach((attribute) => {
+        if (source.hasAttribute(attribute)) {
+          copy.setAttribute(attribute, source.getAttribute(attribute));
+        } else {
+          copy.removeAttribute(attribute);
+        }
+      });
+    });
+  });
+}
+
+renderTestStatusCopies();
+if (carStatusSourceEl) {
+  let testStatusCopyFrame = null;
+  new window.MutationObserver(() => {
+    if (testStatusCopyFrame != null) return;
+    testStatusCopyFrame = requestAnimationFrame(() => {
+      testStatusCopyFrame = null;
+      syncTestStatusCopyTelemetry();
+    });
+  }).observe(carStatusSourceEl, {
+    attributes: true,
+    characterData: true,
+    childList: true,
+    subtree: true,
+  });
+}
+
+testPitEl?.addEventListener("click", (event) => {
+  const toggle = event.target.closest("[data-test-tire], [data-test-service-toggle]");
+  if (!toggle) return;
+  const isSelected = toggle.getAttribute("aria-pressed") === "true";
+  toggle.setAttribute("aria-pressed", String(!isSelected));
+  toggle.classList.toggle("is-selected", !isSelected);
+});
+
+document.getElementById("test-pit-now")?.addEventListener("click", (event) => {
+  const button = event.currentTarget;
+  button.classList.toggle("is-confirmed");
+  button.querySelector("strong").textContent = button.classList.contains("is-confirmed")
+    ? "Pit stop confirmed ✓"
+    : "Pit now →";
+});
 const mapWatchingEl = document.getElementById("map-watching");
 const leaderboardListEl = document.getElementById("leaderboard-list");
 const leaderboardClassFiltersEl = document.getElementById("leaderboard-class-filters");
 const mapClassFiltersEl = document.getElementById("map-class-filters");
 const switchTrackMapEl = document.getElementById("switch-track-map");
+const mainMapTitleEl = document.getElementById("main-map-title");
 const primaryMapTitleEl = document.querySelector(".pit-exit-head span");
 const secondaryMapTitleEl = document.getElementById("secondary-map-title");
 const leaderboardLiveCountEl = document.getElementById("leaderboard-live-count");
@@ -179,12 +696,42 @@ function updatePitFuelPreview() {
 pitFuelAddEl?.addEventListener("input", updatePitFuelPreview);
 updatePitFuelPreview();
 
+fuelCalModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    fuelCalMode = button.dataset.fuelMode || "balanced";
+    fuelCalModeButtons.forEach((item) => {
+      item.setAttribute("aria-pressed", String(item === button));
+    });
+    renderFuelCalculator(latestFuelTelemetry);
+  });
+});
+
+fuelCalReserveEl?.addEventListener("change", () => {
+  renderFuelCalculator(latestFuelTelemetry);
+});
+
 function updatePitTireChangeEstimate() {
   const selectedTireCount = pitTireChangeButtons.filter(
     (button) => button.getAttribute("aria-pressed") === "true",
   ).length;
   const estimatedSeconds = Number(pitTireChangeEstimates[selectedTireCount]);
   setText(pitTireChangeEstimateEl, `EST: ${estimatedSeconds.toFixed(1)} s`);
+  setText(pitSummaryTimeEl, `${estimatedSeconds.toFixed(1)} s`);
+  setText(pitSummaryTiresEl, `${selectedTireCount} / 4`);
+  setText(pitSummaryTireStateEl, selectedTireCount > 0 ? "New" : "None");
+  setText(
+    pitSummaryStatusTextEl,
+    selectedTireCount > 0 || pitFastRepairEl?.checked
+      ? "All requested services are configured."
+      : "Pit services ready.",
+  );
+}
+
+function syncPitAllTiresToggle() {
+  const allSelected = pitTireChangeButtons.length > 0 && pitTireChangeButtons.every(
+    (button) => button.getAttribute("aria-pressed") === "true",
+  );
+  pitAllTiresToggleEl?.setAttribute("aria-pressed", String(allSelected));
 }
 
 pitTireChangeButtons.forEach((button) => {
@@ -194,6 +741,7 @@ pitTireChangeButtons.forEach((button) => {
     const wheel = button.dataset.wheel;
     const wheelLabel = { lf: "FL", rf: "FR", lr: "RL", rr: "RR" }[wheel] || wheel.toUpperCase();
     button.disabled = true;
+    button.classList.add("is-command-pending");
     button.classList.remove("has-command-error");
 
     try {
@@ -208,6 +756,7 @@ pitTireChangeButtons.forEach((button) => {
       }
       button.setAttribute("aria-pressed", String(enabled));
       updatePitTireChangeEstimate();
+      syncPitAllTiresToggle();
       button.title = enabled
         ? `${wheelLabel} tire change selected in iRacing`
         : `${wheelLabel} tire change cleared in iRacing`;
@@ -216,10 +765,59 @@ pitTireChangeButtons.forEach((button) => {
       button.classList.add("has-command-error");
       button.title = error.message || "Unable to send pit command to iRacing";
     } finally {
-      button.disabled = false;
+      button.classList.remove("is-command-pending");
+      button.disabled = !pitCrewTakeoverEl?.checked;
     }
   });
 });
+
+pitAllTiresToggleEl?.addEventListener("click", async () => {
+  if (pitAllTiresToggleEl.disabled) return;
+  const enabled = pitAllTiresToggleEl.getAttribute("aria-pressed") !== "true";
+  const previousStates = new Map(
+    pitTireChangeButtons.map((button) => [button, button.getAttribute("aria-pressed")]),
+  );
+  pitAllTiresToggleEl.disabled = true;
+  pitAllTiresToggleEl.classList.remove("has-command-error");
+  pitTireChangeButtons.forEach((button) => {
+    button.disabled = true;
+    button.classList.add("is-command-pending");
+  });
+
+  try {
+    const response = await fetch("/api/pit/tire-change", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wheel: "all", enabled }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    pitTireChangeButtons.forEach((button) => {
+      button.setAttribute("aria-pressed", String(enabled));
+      button.classList.remove("has-command-error");
+    });
+    pitAllTiresToggleEl.setAttribute("aria-pressed", String(enabled));
+    pitAllTiresToggleEl.title = enabled
+      ? "All tire changes selected in iRacing"
+      : "All tire changes cleared in iRacing";
+  } catch (error) {
+    previousStates.forEach((state, button) => button.setAttribute("aria-pressed", state));
+    pitAllTiresToggleEl.classList.add("has-command-error");
+    pitAllTiresToggleEl.title = error.message || "Unable to send tire commands to iRacing";
+    syncPitAllTiresToggle();
+  } finally {
+    pitTireChangeButtons.forEach((button) => {
+      button.classList.remove("is-command-pending");
+      button.disabled = !pitCrewTakeoverEl?.checked;
+    });
+    pitAllTiresToggleEl.disabled = !pitCrewTakeoverEl?.checked;
+    updatePitTireChangeEstimate();
+  }
+});
+
+syncPitAllTiresToggle();
 
 function syncPitWindscreenTearoff() {
   pitCarTearoffToggleEl?.setAttribute(
@@ -259,8 +857,8 @@ async function setPitWindscreenTearoff(enabled) {
       pitCarTearoffToggleEl.title = error.message || "Unable to send pit command to iRacing";
     }
   } finally {
-    if (pitCarTearoffToggleEl) pitCarTearoffToggleEl.disabled = false;
-    if (pitWindscreenTearoffEl) pitWindscreenTearoffEl.disabled = false;
+    if (pitCarTearoffToggleEl) pitCarTearoffToggleEl.disabled = !pitCrewTakeoverEl?.checked;
+    if (pitWindscreenTearoffEl) pitWindscreenTearoffEl.disabled = !pitCrewTakeoverEl?.checked;
   }
 }
 
@@ -273,10 +871,70 @@ pitWindscreenTearoffEl?.addEventListener("change", () => {
 });
 syncPitWindscreenTearoff();
 
+function syncPitCrewTakeover() {
+  const hasControl = Boolean(pitCrewTakeoverEl?.checked);
+  pitCrewTakeoverToggleEls.forEach((button) => {
+    button.setAttribute("aria-pressed", String(hasControl));
+    button.setAttribute(
+      "aria-label",
+      hasControl ? "Release pit crew controls" : "Take over pit crew controls",
+    );
+    button.title = hasControl ? "Release pit crew controls" : "Take over pit crew controls";
+    const label = button.querySelector("[data-pit-crew-takeover-label]");
+    if (label) {
+      label.replaceChildren(
+        document.createTextNode(hasControl ? "Release" : "Take over"),
+        document.createElement("br"),
+        document.createTextNode("pit crew"),
+      );
+    }
+  });
+  pitTireChangeButtons.forEach((button) => { button.disabled = !hasControl; });
+  if (pitAllTiresToggleEl) pitAllTiresToggleEl.disabled = !hasControl;
+  if (pitCarTearoffToggleEl) pitCarTearoffToggleEl.disabled = !hasControl;
+  if (pitWindscreenTearoffEl) pitWindscreenTearoffEl.disabled = !hasControl;
+  if (pitFuelAddEl) pitFuelAddEl.disabled = !hasControl;
+}
+
+pitCrewTakeoverToggleEls.forEach((button) => {
+  button.addEventListener("click", async () => {
+    if (!pitCrewTakeoverEl) return;
+    const takingControl = !pitCrewTakeoverEl.checked;
+    button.disabled = true;
+    button.classList.remove("has-command-error");
+    try {
+      if (takingControl) {
+        const response = await fetch("/api/iracing/take-seat", { method: "POST" });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || `HTTP ${response.status}`);
+        }
+      } else {
+        const response = await fetch("/api/iracing/leave-seat", { method: "POST" });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || `HTTP ${response.status}`);
+        }
+      }
+      pitCrewTakeoverEl.checked = takingControl;
+      syncPitCrewTakeover();
+    } catch (error) {
+      button.classList.add("has-command-error");
+      button.title = error.message || `Unable to activate ${takingControl ? "Take Seat" : "Leave Seat"} in iRacing`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
+pitCrewTakeoverEl?.addEventListener("change", syncPitCrewTakeover);
+syncPitCrewTakeover();
+
 function syncPitFastRepair() {
   pitFastRepairToggleEls.forEach((button) => {
     button.setAttribute("aria-pressed", String(Boolean(pitFastRepairEl?.checked)));
   });
+  setText(pitSummaryRepairsEl, pitFastRepairEl?.checked ? "✓ Selected" : "✓ None");
+  updatePitTireChangeEstimate();
 }
 
 function formatFastRepairsRemaining(limit, used) {
@@ -313,7 +971,7 @@ function fitTrackMapToContent(svg) {
       "viewBox",
       `${box.x - padding} ${box.y - padding} ${box.width + padding * 2} ${box.height + padding * 2}`,
     );
-  } catch (_) {
+  } catch {
     // A hidden map has no measurable box; it is fitted when its screen opens.
   }
 }
@@ -343,7 +1001,7 @@ function loadTrackSvg() {
       // Replace the existing SVG with the fetched SVG markup
       try {
         el.outerHTML = svgText;
-      } catch (err) {
+      } catch {
         // Fallback: set innerHTML if outerHTML fails
         el.innerHTML = svgText;
       }
@@ -378,7 +1036,7 @@ if (carStatusModuleEl && carStatusPanelEl && carStatusTargetEl) {
   carStatusPanelEl.classList.add("is-car-status-relocated");
 }
 
-let activeScreen = "overview";
+let activeScreen = isOverlayMode ? requestedOverlayScreen : "overview";
 let screenActivationVersion = 0;
 let screenActivationPending = false;
 let isLoadingState = false;
@@ -416,6 +1074,11 @@ let lastAlertsSignature = "";
 let lastSessionNoticeSignature = "";
 let lastShownRefreshHz = null;
 let replayTimingAnchor = null;
+const OIL_TEMPERATURE_HISTORY_MS = 60 * 60 * 1000;
+const OIL_TEMPERATURE_SAMPLE_MS = 5000;
+const OIL_TEMPERATURE_STORAGE_KEY = "raceEngineerOilTemperatureHistory";
+let oilTemperatureSessionKey = null;
+let oilTemperatureHistory = [];
 const DEFAULT_UNIT_PREFERENCES = Object.freeze({
   speed: "kmh",
   temperature: "celsius",
@@ -431,15 +1094,15 @@ try {
   } else if (localStorage.getItem("raceEngineerUnitSystem") === "us") {
     unitPreferences = { speed: "mph", temperature: "fahrenheit", pressure: "psi", fuel: "us-gallons" };
   }
-} catch (_) {
+} catch {
   // Keep the defaults when persistent browser storage is unavailable.
 }
 
 const HEAVY_RENDER_INTERVAL_MS = 100;
 const MAP_RENDER_INTERVAL_MS = 1000 / 60;
-const AUXILIARY_MAP_RENDER_INTERVAL_MS = 100;
+const AUXILIARY_MAP_RENDER_INTERVAL_MS = MAP_RENDER_INTERVAL_MS;
 const LEADERBOARD_POSITION_ANIMATION_MS = 520;
-const FOLLOW_MAP_ROAD_INTERVAL_MS = 50;
+const FOLLOW_MAP_ROAD_INTERVAL_MS = MAP_RENDER_INTERVAL_MS;
 const VIEWED_EVENTS_STORAGE_KEY = "race-engineer.viewed-events.v1";
 const SAVED_EVENTS_STORAGE_KEY = "race-engineer.saved-events.v1";
 
@@ -448,6 +1111,24 @@ const TRACK_MAP_LABELS = {
   "pit-exit-map": "Pit Exit Prediction",
   "follow-map": "Dynamic Map",
 };
+
+function getTrackMapLabel(mapId, pitExitPrediction = null) {
+  if (mapId !== "pit-exit-map") return TRACK_MAP_LABELS[mapId];
+  const position = Number(pitExitPrediction?.position);
+  return `Pit Exit Prediction -${Number.isInteger(position) && position > 0 ? ` P${position}` : ""}`;
+}
+
+function refreshTrackMapLabels(pitExitPrediction = null) {
+  const stages = [
+    [document.querySelector(".trackmap-stage"), mainMapTitleEl],
+    [document.querySelector(".pit-exit-map-stage"), primaryMapTitleEl],
+    [document.querySelector(".dynamic-map-stage"), secondaryMapTitleEl],
+  ];
+  stages.forEach(([stage, title]) => {
+    const mapId = stage?.querySelector(":scope > svg[id]")?.id;
+    if (mapId && title) setText(title, getTrackMapLabel(mapId, pitExitPrediction));
+  });
+}
 
 function arrangeTrackMaps() {
   const mainStageEl = document.querySelector(".trackmap-stage");
@@ -475,9 +1156,9 @@ function arrangeTrackMaps() {
   primaryStageEl.appendChild(layout.primary);
   secondaryStageEl.appendChild(layout.secondary);
 
-  const mainLabel = TRACK_MAP_LABELS[layout.main.id];
-  setText(primaryMapTitleEl, TRACK_MAP_LABELS[layout.primary.id]);
-  setText(secondaryMapTitleEl, TRACK_MAP_LABELS[layout.secondary.id]);
+  const pitExitPrediction = latestSnapshot?.telemetry?.pit_exit_prediction || null;
+  const mainLabel = getTrackMapLabel(layout.main.id, pitExitPrediction);
+  refreshTrackMapLabels(pitExitPrediction);
   mainStageEl.setAttribute("aria-label", `${mainLabel} – stor visning`);
 
   const nextLayout = layouts[(largeTrackMapIndex + 1) % layouts.length];
@@ -511,7 +1192,7 @@ function loadViewedEventKeys() {
   try {
     const stored = JSON.parse(localStorage.getItem(VIEWED_EVENTS_STORAGE_KEY) || "[]");
     return new Set(Array.isArray(stored) ? stored : []);
-  } catch (_) {
+  } catch {
     return new Set();
   }
 }
@@ -521,7 +1202,7 @@ const savedEventKeys = (() => {
   try {
     const stored = JSON.parse(localStorage.getItem(SAVED_EVENTS_STORAGE_KEY) || "[]");
     return new Set(Array.isArray(stored) ? stored : []);
-  } catch (_) {
+  } catch {
     return new Set();
   }
 })();
@@ -564,7 +1245,7 @@ function markEventViewed(event, button) {
       VIEWED_EVENTS_STORAGE_KEY,
       JSON.stringify(Array.from(viewedEventKeys).slice(-500)),
     );
-  } catch (_) {
+  } catch {
     // The indicator still turns off for this page load if storage is blocked.
   }
   syncEventGroupViewed(button?.closest(".event-group"), event);
@@ -583,7 +1264,7 @@ function toggleEventSaved(event, button) {
       SAVED_EVENTS_STORAGE_KEY,
       JSON.stringify(Array.from(savedEventKeys).slice(-500)),
     );
-  } catch (_) {
+  } catch {
     // Saving still works for this page load if storage is blocked.
   }
   syncEventGroupSaved(button?.closest(".event-group"), event);
@@ -594,13 +1275,69 @@ function toggleEventSaved(event, button) {
 }
 
 tabs.forEach((tab) => {
+  tab.title = "Højreklik for at åbne som overlay";
   tab.addEventListener("click", () => {
     const nextScreen = tab.dataset.screen;
     if (nextScreen) {
       setActiveScreen(nextScreen);
     }
   });
+  tab.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    const nextScreen = tab.dataset.screen;
+    if (OVERLAY_SCREENS.has(nextScreen)) window.raceEngineer?.openOverlay?.(nextScreen);
+  });
 });
+
+function syncOverlayLock(locked) {
+  if (!isOverlayMode || !overlayLockEl) return;
+  overlayLockEl.classList.toggle("is-locked", locked);
+  overlayLockEl.setAttribute("aria-pressed", String(locked));
+  overlayLockEl.setAttribute(
+    "aria-label",
+    locked ? "Unlock overlay position" : "Lock overlay position",
+  );
+  overlayLockEl.textContent = locked ? "Position locked · Ctrl+Shift+O" : "Lock position";
+}
+
+function syncOverlayFullscreen(isFullscreen) {
+  if (!isOverlayMode || !overlayFullscreenEl) return;
+  overlayFullscreenEl.classList.toggle("is-active", isFullscreen);
+  overlayFullscreenEl.setAttribute("aria-pressed", String(isFullscreen));
+  overlayFullscreenEl.textContent = isFullscreen ? "Exit full" : "Fullscreen";
+}
+
+if (isOverlayMode) {
+  setText(overlayTitleEl, `${TRACK_MAP_LABELS[requestedOverlayScreen] || tabs.find((tab) => (
+    tab.dataset.screen === requestedOverlayScreen
+  ))?.textContent || "Race-Engineer"} Overlay`);
+  overlayLockEl?.addEventListener("click", async () => {
+    const locked = overlayLockEl.getAttribute("aria-pressed") !== "true";
+    syncOverlayLock(await window.raceEngineer?.setOverlayLocked?.(locked));
+  });
+  overlayFullscreenEl?.addEventListener("click", async () => {
+    syncOverlayFullscreen(await window.raceEngineer?.toggleOverlayFullscreen?.());
+  });
+  overlayFullscreenEl?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  overlayCloseEl?.addEventListener("click", () => window.raceEngineer?.closeOverlay?.());
+  overlayOpacityEl?.addEventListener("input", () => {
+    window.raceEngineer?.setOverlayOpacity?.(Number(overlayOpacityEl.value) / 100);
+  });
+  window.raceEngineer?.onOverlayLockChanged?.(syncOverlayLock);
+  window.raceEngineer?.onOverlayFullscreenChanged?.(syncOverlayFullscreen);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "F11") return;
+    event.preventDefault();
+    overlayFullscreenEl?.click();
+  });
+  window.raceEngineer?.onOverlayScreenChanged?.((screenName) => {
+    if (!OVERLAY_SCREENS.has(screenName)) return;
+    activeScreen = screenName;
+    setActiveScreen(screenName);
+    const label = tabs.find((tab) => tab.dataset.screen === screenName)?.textContent || "Race-Engineer";
+    setText(overlayTitleEl, `${label} Overlay`);
+  });
+}
 
 function setRefreshRateMenuOpen(control, isOpen) {
   if (!control) return;
@@ -612,6 +1349,21 @@ function setRefreshRateMenuOpen(control, isOpen) {
   control.querySelector(".refresh-rate-toggle")
     ?.setAttribute("aria-expanded", String(isOpen));
   control.querySelector(".refresh-rate-menu")
+    ?.setAttribute("aria-hidden", String(!isOpen));
+  control.classList.toggle("is-open", isOpen);
+}
+
+function setUnitDropdownOpen(control, isOpen) {
+  if (!control) return;
+  if (isOpen) {
+    unitDropdowns.forEach((candidate) => {
+      if (candidate !== control) setUnitDropdownOpen(candidate, false);
+    });
+    refreshRateControls.forEach((candidate) => setRefreshRateMenuOpen(candidate, false));
+  }
+  control.querySelector(".unit-dropdown-toggle")
+    ?.setAttribute("aria-expanded", String(isOpen));
+  control.querySelector(".unit-dropdown-menu")
     ?.setAttribute("aria-hidden", String(!isOpen));
   control.classList.toggle("is-open", isOpen);
 }
@@ -630,7 +1382,7 @@ function showRefreshRate(hz) {
 
 refreshRateToggles.forEach((toggle) => toggle.addEventListener("click", () => {
   const control = toggle.closest(".refresh-rate-control");
-  setUnitSettingsOpen(false);
+  if (!control?.closest(".unit-modal")) setUnitSettingsOpen(false);
   setRefreshRateMenuOpen(control, toggle.getAttribute("aria-expanded") !== "true");
 }));
 
@@ -669,6 +1421,7 @@ refreshRateOptions.forEach((option) => option.addEventListener("click", async ()
 
 function setUnitSettingsOpen(isOpen) {
   if (!unitSettingsModalEl) return;
+  if (!isOpen) unitDropdowns.forEach((control) => setUnitDropdownOpen(control, false));
   unitSettingsEl?.classList.toggle("is-open", isOpen);
   unitSettingsModalEl.classList.toggle("is-open", isOpen);
   unitSettingsModalEl.setAttribute("aria-hidden", String(!isOpen));
@@ -687,6 +1440,18 @@ function syncUnitSettings() {
     const preference = select.dataset.unitPreference;
     if (preference && unitPreferences[preference]) select.value = unitPreferences[preference];
   });
+  unitDropdowns.forEach((control) => {
+    const preference = control.dataset.unitDropdown;
+    const selectedValue = unitPreferences[preference];
+    const selectedOption = Array.from(control.querySelectorAll(".unit-dropdown-option"))
+      .find((option) => option.dataset.value === selectedValue);
+    setText(control.querySelector(".unit-dropdown-value"), selectedOption?.textContent || "--");
+    control.querySelectorAll(".unit-dropdown-option").forEach((option) => {
+      const isSelected = option.dataset.value === selectedValue;
+      option.classList.toggle("is-selected", isSelected);
+      option.setAttribute("aria-selected", String(isSelected));
+    });
+  });
   const isMetricPreset = unitPreferences.speed === "kmh"
     && unitPreferences.temperature === "celsius"
     && unitPreferences.pressure === "bar"
@@ -701,6 +1466,21 @@ function syncUnitSettings() {
   const usesFahrenheit = unitPreferences.temperature === "fahrenheit";
   setText(speedUnitLabelEl, `Speed · ${unitPreferences.speed === "mph" ? "mph" : "km/h"}`);
   temperatureUnitEls.forEach((element) => setText(element, usesFahrenheit ? "°F" : "°C"));
+  const pressureUnitLabel = unitPreferences.pressure === "psi"
+    ? "psi"
+    : unitPreferences.pressure === "kpa" ? "kPa" : "bar";
+  pressureUnitEls.forEach((element) => setText(element, pressureUnitLabel));
+  const pressureScaleBarValues = [2.5, 2, 1.5, 1];
+  Object.values(statusTirePressureGauges).forEach((gauge) => {
+    gauge.querySelectorAll(".pressure-tick").forEach((tick, index) => {
+      const valueBar = pressureScaleBarValues[index];
+      setText(tick, unitPreferences.pressure === "psi"
+        ? (valueBar * 14.50377).toFixed(0)
+        : unitPreferences.pressure === "kpa"
+          ? (valueBar * 100).toFixed(0)
+          : valueBar.toFixed(1));
+    });
+  });
   const scaleValues = usesFahrenheit
     ? [32, 68, 104, 140, 176, 212, 248, 284]
     : [0, 20, 40, 60, 80, 100, 120, 140];
@@ -710,11 +1490,113 @@ function syncUnitSettings() {
 function saveUnitPreferences() {
   try {
     localStorage.setItem("raceEngineerUnitPreferences", JSON.stringify(unitPreferences));
-  } catch (_) {
+  } catch {
     // The choices still apply for the current session.
   }
   syncUnitSettings();
   if (latestSnapshot) scheduleRender(latestSnapshot);
+}
+
+function temperatureForDisplay(value) {
+  return unitPreferences.temperature === "fahrenheit" ? (value * 9 / 5) + 32 : value;
+}
+
+function saveOilTemperatureHistory() {
+  try {
+    localStorage.setItem(OIL_TEMPERATURE_STORAGE_KEY, JSON.stringify({
+      sessionKey: oilTemperatureSessionKey,
+      samples: oilTemperatureHistory,
+    }));
+  } catch {
+    // The in-memory history remains available if browser storage is unavailable.
+  }
+}
+
+function resetOilTemperatureHistory(sessionKey) {
+  oilTemperatureSessionKey = sessionKey || null;
+  oilTemperatureHistory = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(OIL_TEMPERATURE_STORAGE_KEY) || "null");
+    if (saved?.sessionKey === oilTemperatureSessionKey && Array.isArray(saved.samples)) {
+      oilTemperatureHistory = saved.samples.filter((sample) => (
+        Array.isArray(sample)
+        && Number.isFinite(sample[0])
+        && Number.isFinite(sample[1])
+        && Date.now() - sample[0] <= OIL_TEMPERATURE_HISTORY_MS
+      ));
+    }
+  } catch {
+    // Start with an empty history when saved data cannot be read.
+  }
+}
+
+function renderOilTemperatureHistory(value, sessionKey, now = Date.now()) {
+  const nextSessionKey = sessionKey || oilTemperatureSessionKey;
+  if (oilTemperatureSessionKey !== nextSessionKey) resetOilTemperatureHistory(nextSessionKey);
+
+  const numericValue = Number(value);
+  if (Number.isFinite(numericValue)) {
+    const lastSample = oilTemperatureHistory.at(-1);
+    if (!lastSample || now - lastSample[0] >= OIL_TEMPERATURE_SAMPLE_MS) {
+      oilTemperatureHistory.push([now, numericValue]);
+      saveOilTemperatureHistory();
+    } else {
+      lastSample[1] = numericValue;
+    }
+  }
+
+  const cutoff = now - OIL_TEMPERATURE_HISTORY_MS;
+  oilTemperatureHistory = oilTemperatureHistory.filter((sample) => sample[0] >= cutoff);
+  const samples = oilTemperatureHistory;
+  const hasHistory = samples.length > 0;
+  [statusOilTempStartEl, statusOilTempCurrentEl].forEach((element) => {
+    element?.classList.toggle("is-visible", hasHistory);
+  });
+  if (!hasHistory) {
+    statusOilTempLineEl?.setAttribute("d", "");
+    statusOilTempAreaEl?.setAttribute("d", "");
+    statusOilTempChartEl?.setAttribute("aria-label", "Oil temperature history unavailable");
+    return;
+  }
+
+  const displaySamples = samples.map(([timestamp, temperature]) => [
+    timestamp,
+    temperatureForDisplay(temperature),
+  ]);
+  const values = displaySamples.map((sample) => sample[1]);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const padding = Math.max(5, (rawMax - rawMin) * 0.15);
+  const scaleMin = Math.floor((rawMin - padding) / 5) * 5;
+  const scaleMax = Math.ceil((rawMax + padding) / 5) * 5;
+  const timeMin = displaySamples[0][0];
+  const timeMax = Math.max(now, timeMin + 1);
+  const points = displaySamples.map(([timestamp, temperature]) => {
+    const x = ((timestamp - timeMin) / (timeMax - timeMin)) * 150;
+    const y = 49 - ((temperature - scaleMin) / (scaleMax - scaleMin)) * 44;
+    return [Math.max(0, Math.min(150, x)), Math.max(5, Math.min(49, y))];
+  });
+  const linePath = points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)}`).join(" ");
+  const [startX, startY] = points[0];
+  const [currentX, currentY] = points.at(-1);
+  statusOilTempLineEl?.setAttribute("d", linePath);
+  statusOilTempAreaEl?.setAttribute("d", `${linePath} L${currentX.toFixed(2)} 54 L${startX.toFixed(2)} 54 Z`);
+  statusOilTempStartEl?.setAttribute("cx", startX.toFixed(2));
+  statusOilTempStartEl?.setAttribute("cy", startY.toFixed(2));
+  statusOilTempCurrentEl?.setAttribute("cx", currentX.toFixed(2));
+  statusOilTempCurrentEl?.setAttribute("cy", currentY.toFixed(2));
+  const scaleMiddle = (scaleMax + scaleMin) / 2;
+  [scaleMax, scaleMiddle, scaleMin].forEach((scaleValue, index) => {
+    setText(statusOilTempScaleEls[index], formatNumber(scaleValue, 0));
+  });
+  const elapsedMs = now - timeMin;
+  setText(statusOilTempRangeStartEl, elapsedMs >= OIL_TEMPERATURE_HISTORY_MS - OIL_TEMPERATURE_SAMPLE_MS
+    ? "-60 min"
+    : "Start");
+  statusOilTempChartEl?.setAttribute(
+    "aria-label",
+    `Oil temperature from ${formatNumber(values[0], 0)} to ${formatNumber(values.at(-1), 0)} degrees over ${Math.max(1, Math.round(elapsedMs / 60000))} minutes`,
+  );
 }
 
 unitSettingsToggleEl?.addEventListener("click", () => {
@@ -726,6 +1608,26 @@ unitPreferenceSelects.forEach((select) => select.addEventListener("change", () =
   unitPreferences = { ...unitPreferences, [select.dataset.unitPreference]: select.value };
   saveUnitPreferences();
 }));
+
+unitDropdowns.forEach((control) => {
+  const toggle = control.querySelector(".unit-dropdown-toggle");
+  toggle?.addEventListener("click", () => {
+    setUnitDropdownOpen(control, toggle.getAttribute("aria-expanded") !== "true");
+  });
+  control.querySelectorAll(".unit-dropdown-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      const select = unitPreferenceSelects.find(
+        (candidate) => candidate.dataset.unitPreference === control.dataset.unitDropdown,
+      );
+      setUnitDropdownOpen(control, false);
+      if (select && select.value !== option.dataset.value) {
+        select.value = option.dataset.value;
+        select.dispatchEvent(new window.Event("change", { bubbles: true }));
+      }
+      toggle?.focus();
+    });
+  });
+});
 
 unitPresetButtons.forEach((button) => button.addEventListener("click", () => {
   unitPreferences = button.dataset.unitPreset === "us"
@@ -747,16 +1649,22 @@ document.addEventListener("click", (event) => {
   refreshRateControls.forEach((control) => {
     if (!control.contains(event.target)) setRefreshRateMenuOpen(control, false);
   });
+  unitDropdowns.forEach((control) => {
+    if (!control.contains(event.target)) setUnitDropdownOpen(control, false);
+  });
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     const openControl = refreshRateControls.find((control) => control.classList.contains("is-open"));
+    const openUnitDropdown = unitDropdowns.find((control) => control.classList.contains("is-open"));
     const unitMenuWasOpen = unitSettingsModalEl?.classList.contains("is-open");
     refreshRateControls.forEach((control) => setRefreshRateMenuOpen(control, false));
-    setUnitSettingsOpen(false);
+    unitDropdowns.forEach((control) => setUnitDropdownOpen(control, false));
+    if (!openUnitDropdown) setUnitSettingsOpen(false);
     openControl?.querySelector(".refresh-rate-toggle")?.focus();
-    if (!openControl && unitMenuWasOpen) unitSettingsToggleEl?.focus();
+    openUnitDropdown?.querySelector(".unit-dropdown-toggle")?.focus();
+    if (!openControl && !openUnitDropdown && unitMenuWasOpen) unitSettingsToggleEl?.focus();
   }
 });
 
@@ -807,7 +1715,7 @@ restartRaceEngineerEl?.addEventListener("click", async () => {
     try {
       await window.raceEngineer.restartApp();
       return;
-    } catch (error) {
+    } catch {
       // Fall through to a page reload when Electron IPC is unavailable.
     }
   }
@@ -877,11 +1785,6 @@ function formatWearPercent(value) {
   return `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
 }
 
-function normalizeTelemetryPercent(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return Math.max(0, Math.min(100, value <= 1 ? value * 100 : value));
-}
-
 function updatePitCarIcon(carName, className) {
   const normalizedName = String(carName || "").toUpperCase();
   const normalizedClass = String(className || "").toUpperCase();
@@ -907,7 +1810,7 @@ async function syncPitCarIconFromState() {
     if (!response.ok) return;
     const snapshot = await response.json();
     updatePitCarIconFromTelemetry(snapshot.telemetry);
-  } catch (error) {
+  } catch {
     // Keep the last valid icon while the local telemetry service reconnects.
   }
 }
@@ -962,13 +1865,6 @@ function setWearStatusBar(element, value) {
   setVisualState(element, normalized == null ? "unavailable" : getLevelState(normalized, 0.25, 0.6));
 }
 
-function formatTirePressure(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
-  if (unitPreferences.pressure === "psi") return `${(value * 0.1450377).toFixed(2)} psi`;
-  if (unitPreferences.pressure === "kpa") return `${value.toFixed(0)} kPa`;
-  return `${(value / 100).toFixed(2)} bar`;
-}
-
 function formatTemperature(value, digits = 0, includeUnit = true) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "--";
   const usesFahrenheit = unitPreferences.temperature === "fahrenheit";
@@ -988,6 +1884,14 @@ function formatFuelVolume(value) {
   if (unitPreferences.fuel === "us-gallons") return `${(value * 0.264172).toFixed(1)} US gal`;
   if (unitPreferences.fuel === "imperial-gallons") return `${(value * 0.219969).toFixed(1)} imp gal`;
   return `${value.toFixed(1)} L`;
+}
+
+function formatPressure(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  value = value > 10 ? value : value * 100;
+  if (unitPreferences.pressure === "psi") return (value * 0.1450377).toFixed(1);
+  if (unitPreferences.pressure === "kpa") return value.toFixed(0);
+  return (value / 100).toFixed(2);
 }
 
 function estimateEmptyLap(telemetry) {
@@ -1021,6 +1925,14 @@ function formatWindDirection(value) {
   ];
   const index = Math.round(deg / 22.5) % 16;
   return `${Math.round(deg)}° ${compass[index]}`;
+}
+
+function updateWindDirectionArrow(value) {
+  if (!windDirectionArrowEl) return;
+  const hasDirection = typeof value === "number" && Number.isFinite(value);
+  const degrees = hasDirection ? ((value % 360) + 360) % 360 : 0;
+  windDirectionArrowEl.style.transform = `rotate(${degrees - 90}deg)`;
+  windDirectionArrowEl.style.opacity = hasDirection ? "1" : "0.35";
 }
 
 function formatTrackWetness(value) {
@@ -1068,6 +1980,17 @@ function rainVisualLabel(value) {
   }[value] || "";
 }
 
+function formatRainState(rainState, precipitation) {
+  const visualState = getRainVisualState(rainState, precipitation);
+  return {
+    none: "NO RAIN",
+    light: "LIGHT",
+    moderate: "MODERATE",
+    heavy: "HEAVY",
+    "very-heavy": "VERY HEAVY",
+  }[visualState] || "--";
+}
+
 function renderLiveCloudCover(skies, windSpeed, windDirection, rainState, precipitation) {
   const coverStates = ["clear", "partly", "mostly", "overcast"];
   const cover = Number.isInteger(skies) ? coverStates[skies] : null;
@@ -1096,7 +2019,6 @@ function renderLiveCloudCover(skies, windSpeed, windDirection, rainState, precip
         .join("; "),
     );
   }
-  const status = rainLabel || (cover ? label : "Clouds waiting");
 }
 
 function getRainPresentation(value) {
@@ -1309,6 +2231,9 @@ function updateSimulatedPrecipitationField(weather, hasRecentTelemetry) {
 }
 
 function renderTestWeather(snapshot, telemetry, hasRecentTelemetry) {
+  // The former weather test screen has been removed. Avoid all radar and
+  // formatting work while keeping this isolated renderer easy to restore.
+  if (!testWeatherDashboardEl) return;
   const weather = telemetry.weather || {};
   const liveLabel = hasRecentTelemetry ? "Live" : (snapshot.connected ? "Stale" : "Offline");
   [testWeatherLiveStatusEl, testWeatherDetailLiveEl].forEach((element) => {
@@ -1496,22 +2421,23 @@ function getFocusedClassName(telemetry) {
 function getClassColor(entry) {
   const name = formatClass(entry).toUpperCase();
   if (name.includes("GTP")) return "#ffd400";
-  if (name.includes("LMP")) return "#ffd900";
-  if (name.includes("GT3")) return "#00a9ff";
+  if (name.includes("LMP")) return "#12afe8";
+  if (name.includes("GT3")) return "#e32636";
   if (name.includes("GT4")) return "#9b5de5";
   return "#168a9c";
 }
 
 function getClassTextColor(entry) {
   const name = formatClass(entry).toUpperCase();
-  return name.includes("GTP") || name.includes("GT3") ? "#000000" : "#ffffff";
+  return name.includes("GTP") || name.includes("LMP") || name.includes("GT3") ? "#000000" : "#ffffff";
 }
 
 function getCarStatus(entry) {
   const statuses = {
     retired: { label: "RET", className: "is-retired" },
     garage: { label: "GARAGE", className: "is-garage" },
-    pit: { label: "PIT ROAD", className: "is-pit" },
+    pit: { label: "PIT LANE", className: "is-pit" },
+    pit_stall: { label: "PIT STALL", className: "is-pit" },
     track: { label: "ON TRACK", className: "is-track" },
   };
   return statuses[entry.car_status]
@@ -1656,7 +2582,8 @@ function updateLeaderboardRow(row, entry, fallbackClassPosition) {
   const normalizedClassName = className.toUpperCase();
   const isGt3 = normalizedClassName.includes("GT3");
   const isGtp = normalizedClassName.includes("GTP");
-  const classPlateType = isGt3 ? " is-gt3" : isGtp ? " is-gtp" : "";
+  const isLmp2 = normalizedClassName.includes("LMP2");
+  const classPlateType = isGt3 ? " is-gt3" : isGtp ? " is-gtp" : isLmp2 ? " is-lmp2" : "";
   const nextClassName = `leaderboard-row${entry.focused ? " is-focused" : ""}`;
   if (row.className !== nextClassName) row.className = nextClassName;
   if (!row.hasAttribute("role")) {
@@ -1681,7 +2608,9 @@ function updateLeaderboardRow(row, entry, fallbackClassPosition) {
     carNumber: entry.car_number ?? "--",
     carName: entry.car_name,
     teamName: entry.team_name || "--",
-    driverName: entry.driver_name ?? "Unknown driver",
+    driverName: Array.isArray(entry.team_driver_names) && entry.team_driver_names.length > 1
+      ? entry.team_driver_names.join(" / ")
+      : entry.driver_name ?? "Unknown driver",
     classGap: formatClassGap(entry),
     interval: formatInterval(entry),
     lastLap: formatSeconds(entry.lap_time),
@@ -1696,21 +2625,22 @@ function updateLeaderboardRow(row, entry, fallbackClassPosition) {
   const renderSignature = JSON.stringify(values);
   if (row.dataset.renderSignature === renderSignature) return;
   row.dataset.renderSignature = renderSignature;
+  const escapeHtml = window.raceEngineerUi.escapeHtml;
   row.innerHTML = `
-      <span>${values.classPosition}</span>
-      <span><b class="class-chip${values.classPlateType}" style="--class-color:${values.classColor};--class-text-color:${values.classTextColor}"><span class="class-chip-name">${values.className}</span></b></span>
-      <span class="car-number-cell">#${values.carNumber}</span>
+      <span>${escapeHtml(values.classPosition)}</span>
+      <span><b class="class-chip${values.classPlateType}" style="--class-color:${values.classColor};--class-text-color:${values.classTextColor}"><span class="class-chip-name">${escapeHtml(values.className)}</span></b></span>
+      <span class="car-number-cell">#${escapeHtml(values.carNumber)}</span>
       <span class="car-brand-cell">${renderCarBrandLogo(values.carName)}</span>
-      <span class="team-cell">${values.teamName}</span>
-      <span class="driver-cell">${values.driverName}</span>
-      <span>${values.classGap}</span>
-      <span>${values.interval}</span>
-      <span class="last-lap-cell">${values.lastLap}</span>
-      <span class="best-lap-cell">${values.bestLap}</span>
-      <span>${values.lapsCompleted}</span>
-      <span>${values.lapsSincePit}</span>
-      <span>${values.pitDuration}</span>
-      <span class="tire-cell">${values.tireType}</span>
+      <span class="team-cell">${escapeHtml(values.teamName)}</span>
+      <span class="driver-cell">${escapeHtml(values.driverName)}</span>
+      <span>${escapeHtml(values.classGap)}</span>
+      <span>${escapeHtml(values.interval)}</span>
+      <span class="last-lap-cell">${escapeHtml(values.lastLap)}</span>
+      <span class="best-lap-cell">${escapeHtml(values.bestLap)}</span>
+      <span>${escapeHtml(values.lapsCompleted)}</span>
+      <span>${escapeHtml(values.lapsSincePit)}</span>
+      <span>${escapeHtml(values.pitDuration)}</span>
+      <span class="tire-cell">${escapeHtml(values.tireType)}</span>
       <span><b class="car-status ${values.statusClass}">${values.statusLabel}</b></span>
     `;
 }
@@ -2358,7 +3288,10 @@ function getMapCarClassKey(car, standingsByCarIdx) {
 }
 
 function isMapCarDimmed(car, standingsByCarIdx) {
-  return mapClassFilter !== "all"
+  // The camera car must always remain visible, even when the engineer has a
+  // different class filter selected.
+  return !car?.focused
+    && mapClassFilter !== "all"
     && getMapCarClassKey(car, standingsByCarIdx) !== mapClassFilter;
 }
 
@@ -2517,7 +3450,7 @@ function renderTrackMap(trackMap, focusedSpeedMs, pitExitPrediction) {
         if (innerTrackLength > 0) {
           innerStartFinishOffset = closestPathDistance(innerTrackPathEl, innerTrackLength);
         }
-      } catch (_) {
+      } catch {
         startFinishOffset = 0;
         innerStartFinishOffset = 0;
       }
@@ -2548,8 +3481,9 @@ function renderTrackMap(trackMap, focusedSpeedMs, pitExitPrediction) {
       trackPathEl,
       mapScale,
       startFinishOffset,
-      // The first contour in iRacing's active.svg is wound opposite to the
-      // simulator's increasing CarIdxLapDistPct race direction.
+      // iRacing's official active-track contour is wound opposite to the
+      // circuit direction shown by its direction arrow. CarIdxLapDistPct
+      // increases in the arrow's direction, so read the contour backwards.
       trackProgressDirection: -1,
       innerTrackPathEl,
       innerTrackLength,
@@ -2572,7 +3506,11 @@ function renderTrackMap(trackMap, focusedSpeedMs, pitExitPrediction) {
   const interpolationDelay = Math.max(50, Math.min(140, currentRefreshMs * 1.5));
   const interpolationTime = frameTime - interpolationDelay;
 
-  mapCars.forEach((car) => {
+  // Draw the camera car last so a tightly packed group cannot cover it.
+  const orderedMapCars = [...mapCars].sort(
+    (a, b) => Number(Boolean(a?.focused)) - Number(Boolean(b?.focused)),
+  );
+  orderedMapCars.forEach((car) => {
     let x = car.x;
     let y = car.y;
 
@@ -2641,6 +3579,7 @@ function renderTrackMap(trackMap, focusedSpeedMs, pitExitPrediction) {
     const fontSize = `${9 * mapScale}px`;
     if (label.style.fontSize !== fontSize) label.style.fontSize = fontSize;
     setText(label, car.car_number || "--");
+    if (car.focused) trackMapCarsEl.appendChild(group);
   });
 
   existingCars.forEach((element, carId) => {
@@ -2680,7 +3619,7 @@ function syncPitExitMapLayers() {
           `${box.x - padding} ${box.y - padding} ${box.width + (padding * 2)} ${box.height + (padding * 2)}`,
         );
       }
-    } catch (_) {
+    } catch {
       // Keep the source viewBox while the SVG is not measurable yet.
     }
   }
@@ -2745,7 +3684,7 @@ function syncTestWeatherMapLayers() {
           padding,
         );
       }
-    } catch (_) {
+    } catch {
       // Keep the official viewBox if the test screen is not measurable yet.
     }
   } else {
@@ -2771,7 +3710,7 @@ function syncTestWeatherMapLayers() {
         contentEl.setAttribute("transform", `rotate(90 ${centerX} ${centerY})`);
         setTestWeatherViewBox(weatherMapEl, centerX, centerY, box.height, box.width, padding);
       }
-    } catch (_) {
+    } catch {
       contentEl.removeAttribute("transform");
     }
   }
@@ -2781,15 +3720,39 @@ function syncTestWeatherMapLayers() {
 function renderPitExitMap(prediction, geometry, standingsByCarIdx) {
   const miniMapEl = document.getElementById("pit-exit-map");
   const carsEl = document.getElementById("pit-exit-map-cars");
+  refreshTrackMapLabels(prediction);
   if (!miniMapEl || !carsEl) return;
 
   if (!carsEl.previousElementSibling?.childElementCount) syncPitExitMapLayers();
   const mapScale = geometry.mapScale || 1;
+  const frameTime = performance.now();
+  const interpolationDelay = Math.max(50, Math.min(140, currentRefreshMs * 1.5));
+  const interpolationTime = frameTime - interpolationDelay;
+  const focusedLiveCar = (prediction?.cars || []).find((car) => car.focused && !car.pit_exit);
   const projectedCars = (prediction?.cars || []).map((car) => {
     let x = car.x;
     let y = car.y;
     if (geometry.trackLength > 0 && car.lap_dist_pct != null) {
-      const point = projectTrackPoint(car.lap_dist_pct, geometry);
+      const rawProgress = ((Number(car.lap_dist_pct) % 1) + 1) % 1;
+      let progress = interpolateLapProgress(
+        mapCarSampleHistory.get(String(car.car_idx)),
+        interpolationTime,
+        rawProgress,
+      );
+      // The prediction ghost follows the focused car with a fixed pit-loss
+      // offset. Reuse the focused car's smooth motion so the ghost does not
+      // jump at the telemetry refresh rate when this map occupies the large stage.
+      if (car.pit_exit && focusedLiveCar?.lap_dist_pct != null) {
+        const focusedRawProgress = ((Number(focusedLiveCar.lap_dist_pct) % 1) + 1) % 1;
+        const focusedProgress = interpolateLapProgress(
+          mapCarSampleHistory.get(String(focusedLiveCar.car_idx)),
+          interpolationTime,
+          focusedRawProgress,
+        );
+        const ghostOffset = ((rawProgress - focusedRawProgress + 1.5) % 1) - 0.5;
+        progress = ((focusedProgress + ghostOffset) % 1 + 1) % 1;
+      }
+      const point = projectTrackPoint(progress, geometry);
       x = point.x;
       y = point.y;
     }
@@ -2811,7 +3774,9 @@ function renderPitExitMap(prediction, geometry, standingsByCarIdx) {
     let circle;
     let pitRing;
     let label;
+    let isNewGroup = false;
     if (!group) {
+      isNewGroup = true;
       group = document.createElementNS("http://www.w3.org/2000/svg", "g");
       group.dataset.carIdx = carId;
       pitRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -2820,6 +3785,7 @@ function renderPitExitMap(prediction, geometry, standingsByCarIdx) {
       circle.setAttribute("class", "pit-exit-map-marker");
       label = document.createElementNS("http://www.w3.org/2000/svg", "text");
       group.append(pitRing, circle, label);
+      carsEl.appendChild(group);
     } else {
       pitRing = group.querySelector(".pit-exit-map-pit-ring");
       circle = group.querySelector(".pit-exit-map-marker");
@@ -2843,7 +3809,11 @@ function renderPitExitMap(prediction, geometry, standingsByCarIdx) {
     const fontSize = `${(car.focused ? 14 : 11) * mapScale}px`;
     if (label.style.fontSize !== fontSize) label.style.fontSize = fontSize;
     setText(label, car.pit_exit ? "" : (car.car_number || "--"));
-    carsEl.appendChild(group);
+    // Existing nodes already have the correct stable order. Re-appending every
+    // car on every animation frame caused needless SVG style/layout work.
+    if (!isNewGroup && car.focused && group !== carsEl.lastElementChild) {
+      carsEl.appendChild(group);
+    }
   });
   existingCars.forEach((element, carId) => {
     if (!visibleCarIds.has(carId)) element.remove();
@@ -3006,7 +3976,10 @@ function renderFollowMap(
   const focusedRadius = 10;
   const fontSize = 9;
 
-  projectedCars.forEach(({ car, x, y }) => {
+  const orderedCars = [...projectedCars].sort(
+    ({ car: a }, { car: b }) => Number(Boolean(a?.focused)) - Number(Boolean(b?.focused)),
+  );
+  orderedCars.forEach(({ car, x, y }) => {
     const carId = String(car.car_idx);
     visibleCarIds.add(carId);
     let group = existingCars.get(carId);
@@ -3057,6 +4030,7 @@ function renderFollowMap(
     setSvgAttribute(halo, "stroke-width", 1);
     setSvgAttribute(label, "font-size", fontSize);
     setText(label, car.car_number || "--");
+    if (car.focused) followCarsEl.appendChild(group);
   });
 
   existingCars.forEach((element, carId) => {
@@ -3102,6 +4076,374 @@ function renderSessionNotice(snapshot, telemetry) {
   sessionNoticeEl.innerHTML = "";
 }
 
+function renderFuelStrategy(telemetry) {
+  const strategy = telemetry?.fuel_strategy || {};
+  const numeric = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : NaN;
+  const currentFuel = numeric(telemetry?.player_fuel_level ?? telemetry?.fuel_level);
+  const capacity = numeric(telemetry?.fuel_capacity);
+  const remaining = numeric(telemetry?.session_laps_remain_estimated ?? telemetry?.session_laps_remain);
+  const average = numeric(strategy.average_5_laps ?? strategy.selected_consumption);
+  const last = numeric(strategy.last_lap);
+  const maximum = numeric(strategy.maximum);
+  const sampleCount = Math.max(0, Number(strategy.sample_count) || 0);
+  const reserve = Math.max(0, Number(fuelCalReserveEl?.value) || 0.5);
+  const rates = {
+    attack: Number.isFinite(maximum) && maximum > 0 ? maximum : average,
+    balanced: average,
+    save: average * 0.96,
+  };
+  const selectedRate = rates[fuelCalMode];
+  const ready = Number.isFinite(currentFuel) && currentFuel >= 0
+    && Number.isFinite(remaining) && remaining >= 0
+    && Number.isFinite(selectedRate) && selectedRate > 0;
+  const required = ready ? selectedRate * (remaining + reserve) : NaN;
+  const recommended = ready ? Math.max(0, required - currentFuel) : NaN;
+  const atFinish = ready ? currentFuel - (selectedRate * remaining) : NaN;
+  const estimatedRange = ready ? currentFuel / selectedRate : numeric(strategy.estimated_laps);
+  const fillRate = numeric(strategy.fill_rate_lps) > 0 ? numeric(strategy.fill_rate_lps) : 2.5;
+  const volume = (value) => Number.isFinite(value) ? formatFuelVolume(value) : "--";
+  const laps = (value) => Number.isFinite(value) ? `${value.toFixed(1)} laps` : "--";
+
+  setText(document.getElementById("map-fuel-current"), volume(currentFuel));
+  setText(document.getElementById("map-fuel-capacity"), Number.isFinite(capacity) ? volume(capacity) : "FULL");
+  setText(document.getElementById("map-fuel-laps"), laps(estimatedRange));
+  setText(document.getElementById("map-fuel-laps-remaining"), laps(remaining));
+  setText(document.getElementById("map-fuel-at-finish"), volume(atFinish));
+  setText(document.getElementById("map-fuel-last"), volume(last));
+  setText(document.getElementById("map-fuel-consumption"), volume(average));
+  setText(document.getElementById("map-fuel-maximum"), volume(maximum));
+  setText(document.getElementById("map-fuel-needed"), volume(required));
+  setText(document.getElementById("map-fuel-add"), ready ? `+${volume(recommended)}` : "--");
+  setText(document.getElementById("map-fuel-refuel-time"), ready ? `${(recommended / fillRate).toFixed(1)} s` : "--");
+  setText(document.getElementById("map-fuel-samples"), `${sampleCount} ${sampleCount === 1 ? "LAP" : "LAPS"}`);
+  setText(
+    document.getElementById("map-fuel-confidence"),
+    sampleCount >= 8 ? "HIGH CONFIDENCE"
+      : sampleCount >= 3 ? "MEDIUM CONFIDENCE"
+        : sampleCount > 0 ? "LOW CONFIDENCE" : "NO DATA",
+  );
+  setText(document.getElementById("map-fuel-mode"), `${fuelCalMode.toUpperCase()} · ${reserve.toFixed(2)} LAP RESERVE`);
+  setText(
+    document.getElementById("map-fuel-state"),
+    !ready ? "WAITING"
+      : atFinish < 0 ? "PIT REQUIRED"
+        : atFinish < selectedRate * reserve ? "MARGINAL" : "FUEL OK",
+  );
+  const levelFill = document.getElementById("map-fuel-level-fill");
+  if (levelFill) {
+    levelFill.style.width = (
+      Number.isFinite(currentFuel) && Number.isFinite(capacity) && capacity > 0
+        ? `${Math.min(100, Math.max(0, (currentFuel / capacity) * 100))}%`
+        : "0%"
+    );
+  }
+}
+
+function renderFuelCalculator(telemetry) {
+  latestFuelTelemetry = telemetry || {};
+  const strategy = telemetry?.fuel_strategy || {};
+  const numeric = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : NaN;
+  const currentFuel = numeric(telemetry?.player_fuel_level ?? telemetry?.fuel_level);
+  const capacity = numeric(telemetry?.fuel_capacity);
+  const remaining = numeric(
+    telemetry?.session_laps_remain_estimated
+      ?? telemetry?.session_laps_remain
+      ?? (
+        numeric(strategy.target_laps) - numeric(strategy.reserve_laps)
+      ),
+  );
+  const average = numeric(strategy.average_5_laps ?? strategy.selected_consumption);
+  const last = numeric(strategy.last_lap);
+  const maximum = numeric(strategy.maximum);
+  const sampleCount = Math.max(0, Number(strategy.sample_count) || 0);
+  const reserve = Math.max(0, Number(fuelCalReserveEl?.value) || 0.5);
+  const fillRate = numeric(strategy.fill_rate_lps) > 0 ? numeric(strategy.fill_rate_lps) : 2.5;
+  const hasFuel = Number.isFinite(currentFuel) && currentFuel >= 0;
+  const hasConsumption = Number.isFinite(average) && average > 0;
+  const hasRemaining = Number.isFinite(remaining) && remaining >= 0;
+  const ready = hasFuel && hasConsumption && hasRemaining;
+  const safeRate = Number.isFinite(maximum) && maximum > 0 ? maximum : average;
+  const rates = {
+    attack: safeRate,
+    balanced: average,
+    save: average * 0.96,
+  };
+  const selectedRate = rates[fuelCalMode];
+  const targetLaps = hasRemaining ? remaining + reserve : NaN;
+  const required = ready ? selectedRate * targetLaps : NaN;
+  const recommendedAdd = ready ? Math.max(0, required - currentFuel) : NaN;
+  const finishWithoutStop = ready ? currentFuel - (selectedRate * remaining) : NaN;
+  const finishReserve = ready ? currentFuel + recommendedAdd - (selectedRate * remaining) : NaN;
+  const range = hasFuel && hasConsumption ? currentFuel / selectedRate : NaN;
+  const fuelPercent = hasFuel && Number.isFinite(capacity) && capacity > 0
+    ? Math.min(100, Math.max(0, (currentFuel / capacity) * 100))
+    : 0;
+  const requiredPercent = ready && Number.isFinite(capacity) && capacity > 0
+    ? Math.min(100, Math.max(0, (required / capacity) * 100))
+    : 0;
+  const volume = (value) => Number.isFinite(value) ? formatFuelVolume(value) : "--";
+  const laps = (value) => Number.isFinite(value) ? `${value.toFixed(1)} laps` : "--";
+  const scenarioAdd = (rate) => (
+    hasFuel && hasRemaining && Number.isFinite(rate)
+      ? Math.max(0, rate * targetLaps - currentFuel)
+      : NaN
+  );
+
+  renderFuelDashboard(telemetry, {
+    currentFuel, capacity, remaining, average, last, maximum, sampleCount,
+    selectedRate, required, recommendedAdd, finishWithoutStop, finishReserve,
+    range, fuelPercent, fillRate, safeRate, targetLaps,
+  });
+
+  setText(document.getElementById("fuel-cal-current"), volume(currentFuel));
+  setText(document.getElementById("fuel-cal-capacity"), Number.isFinite(capacity) ? volume(capacity) : "FULL");
+  setText(document.getElementById("fuel-cal-range"), laps(range));
+  setText(document.getElementById("fuel-cal-laps-remaining"), laps(remaining));
+  setText(document.getElementById("fuel-cal-at-finish"), volume(finishWithoutStop));
+  setText(document.getElementById("fuel-cal-last"), volume(last));
+  setText(document.getElementById("fuel-cal-average"), volume(average));
+  setText(document.getElementById("fuel-cal-maximum"), volume(maximum));
+  setText(document.getElementById("fuel-cal-sample-count"), `${sampleCount} ${sampleCount === 1 ? "LAP" : "LAPS"}`);
+  setText(document.getElementById("fuel-cal-attack-add"), volume(scenarioAdd(safeRate)));
+  setText(document.getElementById("fuel-cal-balanced-add"), volume(scenarioAdd(average)));
+  setText(document.getElementById("fuel-cal-save-add"), volume(scenarioAdd(average * 0.96)));
+  setText(document.getElementById("fuel-cal-attack-rate"), Number.isFinite(safeRate) ? `${volume(safeRate)} / lap` : "Highest use");
+  setText(document.getElementById("fuel-cal-balanced-rate"), hasConsumption ? `${volume(average)} / lap` : "5-lap average");
+  setText(document.getElementById("fuel-cal-save-rate"), hasConsumption ? `${volume(average * 0.96)} / lap target` : "4% target saving");
+  setText(document.getElementById("fuel-cal-required"), volume(required));
+  setText(document.getElementById("fuel-cal-recommended"), ready ? `+${volume(recommendedAdd)}` : "--");
+  setText(document.getElementById("fuel-cal-finish-reserve"), volume(finishReserve));
+  setText(document.getElementById("fuel-cal-refuel-time"), ready ? `${(recommendedAdd / fillRate).toFixed(1)} s` : "--");
+
+  if (fuelCalTankFillEl) fuelCalTankFillEl.style.width = `${fuelPercent}%`;
+  if (fuelCalRequiredMarkerEl) fuelCalRequiredMarkerEl.style.left = `${requiredPercent}%`;
+
+  const confidence = sampleCount >= 8 ? "HIGH" : sampleCount >= 3 ? "MEDIUM" : sampleCount > 0 ? "LOW" : "NO DATA";
+  setText(fuelCalConfidenceEl, `${confidence} CONFIDENCE`);
+  fuelCalConfidenceEl?.classList.toggle("is-high", confidence === "HIGH");
+  fuelCalConfidenceEl?.classList.toggle("is-medium", confidence === "MEDIUM");
+
+  fuelCalStatusEl?.classList.remove("is-waiting", "is-warning", "is-critical");
+  if (!ready) {
+    fuelCalStatusEl?.classList.add("is-waiting");
+    setText(document.getElementById("fuel-cal-state-label"), "WAITING FOR DATA");
+    setText(
+      document.getElementById("fuel-cal-state-message"),
+      hasFuel ? "Complete a lap to calculate fuel" : "Waiting for live fuel telemetry",
+    );
+    setText(document.getElementById("fuel-cal-state-detail"), `${sampleCount} valid consumption samples`);
+  } else if (finishWithoutStop < 0) {
+    fuelCalStatusEl?.classList.add("is-critical");
+    setText(document.getElementById("fuel-cal-state-label"), "PIT REQUIRED");
+    setText(document.getElementById("fuel-cal-state-message"), `Add ${volume(recommendedAdd)} to reach the finish`);
+    setText(document.getElementById("fuel-cal-state-detail"), `${reserve.toFixed(2)} lap reserve included · ${confidence.toLowerCase()} confidence`);
+  } else if (finishWithoutStop < selectedRate * reserve) {
+    fuelCalStatusEl?.classList.add("is-warning");
+    setText(document.getElementById("fuel-cal-state-label"), "FUEL MARGINAL");
+    setText(document.getElementById("fuel-cal-state-message"), `${volume(finishWithoutStop)} expected at the finish`);
+    setText(document.getElementById("fuel-cal-state-detail"), "Increase reserve or prepare to fuel save");
+  } else {
+    setText(document.getElementById("fuel-cal-state-label"), "FUEL OK");
+    setText(document.getElementById("fuel-cal-state-message"), `${laps(finishWithoutStop / selectedRate)} of fuel in hand`);
+    setText(document.getElementById("fuel-cal-state-detail"), `${fuelCalMode.toUpperCase()} model · ${volume(selectedRate)} per lap`);
+  }
+
+}
+
+function renderFuelDashboard(telemetry, fuel) {
+  const strategy = telemetry?.fuel_strategy || {};
+  const value = (number, digits = 1) => Number.isFinite(number) ? `${number.toFixed(digits)} L` : "--";
+  const lapCount = (number) => Number.isFinite(number) ? number.toFixed(1) : "--";
+  const addFor = (rate) => (
+    Number.isFinite(rate) && Number.isFinite(fuel.targetLaps) && Number.isFinite(fuel.currentFuel)
+      ? Math.max(0, rate * fuel.targetLaps - fuel.currentFuel)
+      : NaN
+  );
+  const density = Number(telemetry?.fuel_density);
+  const fuelMass = Number.isFinite(density) && Number.isFinite(fuel.currentFuel)
+    ? density * fuel.currentFuel : NaN;
+  const tankReserve = Number.isFinite(fuel.capacity) ? fuel.capacity * 0.02 : NaN;
+  const usableCapacity = Number.isFinite(fuel.capacity) ? fuel.capacity - tankReserve : NaN;
+  const usePerHour = Number(telemetry?.player_fuel_use_per_hour ?? telemetry?.fuel_use_per_hour);
+  const lap = Number(telemetry?.current_lap ?? telemetry?.laps_completed);
+  const sessionLaps = Number(telemetry?.session_laps_total);
+  const onPitRoad = Boolean(telemetry?.player_on_pit_road ?? telemetry?.on_pit_road);
+  const currentLap = Number.isFinite(lap) ? Math.max(1, Math.floor(lap)) : 1;
+  const plannedLaps = Number.isFinite(fuel.targetLaps) ? Math.max(0, Math.ceil(fuel.targetLaps)) : NaN;
+  const needsStop = Number.isFinite(fuel.recommendedAdd) && fuel.recommendedAdd > 0.05;
+  const pitLap = (
+    needsStop && Number.isFinite(fuel.range)
+      ? currentLap + Math.max(1, Math.floor(fuel.range))
+      : NaN
+  );
+  const fuelAfterStop = (
+    Number.isFinite(fuel.currentFuel) && Number.isFinite(fuel.recommendedAdd)
+      ? Math.min(fuel.capacity || Infinity, fuel.currentFuel + fuel.recommendedAdd)
+      : NaN
+  );
+  const scenarioFinish = (rate, added) => (
+    Number.isFinite(rate) && Number.isFinite(added)
+    && Number.isFinite(fuel.currentFuel) && Number.isFinite(fuel.targetLaps)
+      ? fuel.currentFuel + added - rate * fuel.targetLaps
+      : NaN
+  );
+  const safeAdd = addFor(fuel.safeRate);
+  const balancedAdd = addFor(fuel.average);
+  const saveRate = fuel.average * 0.96;
+  const saveAdd = addFor(saveRate);
+  const weather = telemetry?.weather || {};
+
+  setText(document.getElementById("fuel-live-current"), value(fuel.currentFuel));
+  setText(document.getElementById("fuel-live-range"), lapCount(fuel.range));
+  setText(document.getElementById("fuel-live-remaining"), lapCount(fuel.remaining));
+  setText(document.getElementById("fuel-live-percent"), Number.isFinite(fuel.fuelPercent) ? `${fuel.fuelPercent.toFixed(0)}%` : "--");
+  setText(document.getElementById("fuel-live-capacity"), value(fuel.capacity));
+  setText(document.getElementById("fuel-status-current"), value(fuel.currentFuel));
+  setText(document.getElementById("fuel-status-tank-capacity"), value(fuel.capacity));
+  setText(document.getElementById("fuel-status-usable-capacity"), value(usableCapacity));
+  setText(document.getElementById("fuel-status-reserve"), value(tankReserve));
+  setText(document.getElementById("fuel-live-density"), Number.isFinite(density) ? `${density.toFixed(3)} kg/L` : "--");
+  setText(document.getElementById("fuel-live-mass"), Number.isFinite(fuelMass) ? `${fuelMass.toFixed(1)} kg` : "--");
+  setText(document.getElementById("fuel-live-lap"), Number.isFinite(lap) ? `${Math.max(1, Math.floor(lap))}` : "--");
+  setText(document.getElementById("fuel-live-session-laps"), Number.isFinite(sessionLaps) ? `${Math.floor(sessionLaps)}` : "--");
+  setText(document.getElementById("fuel-live-pit"), onPitRoad ? "YES" : "NO");
+  setText(document.getElementById("fuel-live-samples"), `${fuel.sampleCount} laps`);
+  setText(document.getElementById("fuel-live-confidence"), fuel.sampleCount >= 8 ? "HIGH CONFIDENCE" : fuel.sampleCount >= 3 ? "MEDIUM CONFIDENCE" : "COLLECTING LAP DATA");
+  setText(document.getElementById("fuel-live-finish"), value(fuel.finishReserve));
+  setText(document.getElementById("fuel-live-add"), Number.isFinite(fuel.recommendedAdd) ? `+${value(fuel.recommendedAdd)}` : "--");
+  setText(document.getElementById("fuel-live-reserve"), value(fuel.finishReserve));
+  setText(document.getElementById("fuel-live-refuel"), Number.isFinite(fuel.recommendedAdd) ? `${(fuel.recommendedAdd / fuel.fillRate).toFixed(1)} s` : "--");
+  setText(document.getElementById("fuel-live-safe"), value(addFor(fuel.safeRate)));
+  setText(document.getElementById("fuel-live-balanced"), value(addFor(fuel.average)));
+  setText(document.getElementById("fuel-live-save"), value(addFor(fuel.average * 0.96)));
+  setText(document.getElementById("fuel-live-last"), value(fuel.last, 2));
+  setText(document.getElementById("fuel-live-average"), value(fuel.average, 2));
+  setText(document.getElementById("fuel-live-maximum"), value(fuel.maximum, 2));
+  setText(document.getElementById("fuel-live-hour"), Number.isFinite(usePerHour) ? `${usePerHour.toFixed(1)} kg/h` : "--");
+  setText(document.getElementById("fuel-plan-laps-one"), Number.isFinite(plannedLaps) ? `${currentLap} – ${currentLap + plannedLaps}` : "--");
+  setText(document.getElementById("fuel-plan-rate-one"), value(fuel.selectedRate, 2));
+  setText(document.getElementById("fuel-plan-start-one"), value(fuel.currentFuel));
+  setText(document.getElementById("fuel-plan-end-one"), value(fuel.finishWithoutStop));
+  setText(document.getElementById("fuel-plan-pit-one"), Number.isFinite(pitLap) ? `${pitLap}` : "–");
+  setText(document.getElementById("fuel-plan-add-one"), needsStop ? value(fuel.recommendedAdd) : "–");
+  setText(document.getElementById("fuel-plan-total-one"), value(fuelAfterStop));
+  setText(document.getElementById("fuel-plan-laps-two"), needsStop && Number.isFinite(pitLap) && Number.isFinite(plannedLaps) ? `${pitLap} – ${currentLap + plannedLaps}` : "–");
+  setText(document.getElementById("fuel-plan-rate-two"), needsStop ? value(fuel.selectedRate, 2) : "–");
+  setText(document.getElementById("fuel-plan-start-two"), needsStop ? value(fuelAfterStop) : "–");
+  setText(document.getElementById("fuel-plan-end-two"), needsStop ? value(fuel.finishReserve) : "–");
+  setText(document.getElementById("fuel-plan-pit-two"), "–");
+  setText(document.getElementById("fuel-plan-add-two"), "–");
+  setText(document.getElementById("fuel-plan-total-two"), needsStop ? value(fuel.finishReserve) : "–");
+  setText(document.getElementById("fuel-plan-current-finish"), value(fuel.finishReserve));
+  setText(document.getElementById("fuel-plan-current-stops"), Number.isFinite(fuel.recommendedAdd) ? `${needsStop ? 1 : 0}` : "--");
+  setText(document.getElementById("fuel-plan-current-margin"), value(fuel.finishReserve));
+  setText(document.getElementById("fuel-plan-early-finish"), value(scenarioFinish(fuel.safeRate, safeAdd)));
+  setText(document.getElementById("fuel-plan-early-stops"), Number.isFinite(safeAdd) ? `${safeAdd > 0.05 ? 1 : 0}` : "--");
+  setText(document.getElementById("fuel-plan-early-add"), value(safeAdd));
+  setText(document.getElementById("fuel-plan-late-finish"), value(scenarioFinish(fuel.average, balancedAdd)));
+  setText(document.getElementById("fuel-plan-late-stops"), Number.isFinite(balancedAdd) ? `${balancedAdd > 0.05 ? 1 : 0}` : "--");
+  setText(document.getElementById("fuel-plan-late-add"), value(balancedAdd));
+  setText(document.getElementById("fuel-plan-save-finish"), value(scenarioFinish(saveRate, saveAdd)));
+  setText(document.getElementById("fuel-plan-save-stops"), Number.isFinite(saveAdd) ? `${saveAdd > 0.05 ? 1 : 0}` : "--");
+  setText(document.getElementById("fuel-plan-save-add"), value(saveAdd));
+  setText(document.getElementById("fuel-calculator-laps"), Number.isFinite(plannedLaps) ? `${plannedLaps}` : "--");
+  setText(
+    document.getElementById("fuel-calculator-window"),
+    Number.isFinite(pitLap) ? `LAP ${Math.max(currentLap, pitLap - 2)} – ${pitLap + 2}` : "NO STOP",
+  );
+  setText(document.getElementById("fuel-calculator-optimal"), Number.isFinite(pitLap) ? `${pitLap}` : "–");
+  setText(document.getElementById("fuel-calculator-total"), value(fuelAfterStop));
+  setText(
+    document.getElementById("fuel-calculator-margin-laps"),
+    Number.isFinite(fuel.finishReserve) && Number.isFinite(fuel.selectedRate) && fuel.selectedRate > 0
+      ? `+${Math.max(0, fuel.finishReserve / fuel.selectedRate).toFixed(1)} LAPS`
+      : "--",
+  );
+  setText(document.getElementById("fuel-variable-track-temp"), formatTemperature(weather.track_temp));
+  setText(document.getElementById("fuel-variable-air-temp"), formatTemperature(weather.air_temp));
+  setText(
+    document.getElementById("fuel-variable-wind"),
+    Number.isFinite(Number(weather.wind_speed)) ? formatWindSpeed(Number(weather.wind_speed)) : "--",
+  );
+  setText(
+    document.getElementById("fuel-variable-track-rubber"),
+    telemetry?.weather?.track_rubber || "--",
+  );
+  setText(
+    document.getElementById("fuel-variable-traffic"),
+    telemetry?.traffic?.car_ahead || telemetry?.traffic?.car_behind ? "Medium" : "Clear",
+  );
+  setText(document.getElementById("fuel-stint-laps"), Number.isFinite(fuel.remaining) ? `NOW – ${Math.ceil(fuel.remaining)}` : "--");
+  setText(document.getElementById("fuel-stint-rate"), value(fuel.selectedRate, 2));
+  setText(document.getElementById("fuel-stint-start"), value(fuel.currentFuel));
+  setText(document.getElementById("fuel-stint-end"), value(fuel.finishWithoutStop));
+  setText(document.getElementById("fuel-stint-action"), Number.isFinite(fuel.recommendedAdd) && fuel.recommendedAdd > 0.05 ? `ADD ${value(fuel.recommendedAdd)}` : "NO STOP");
+
+  const level = document.getElementById("fuel-live-level");
+  if (level) level.style.width = `${fuel.fuelPercent || 0}%`;
+  const dial = document.getElementById("fuel-live-dial");
+  if (dial) dial.style.setProperty("--fuel-pct", `${(fuel.fuelPercent || 0) * 2.7}deg`);
+
+  const samples = Array.isArray(strategy.lap_samples) ? strategy.lap_samples.map(Number).filter(Number.isFinite) : [];
+  const averageOf = (values) => values.length
+    ? values.reduce((sum, sample) => sum + sample, 0) / values.length
+    : NaN;
+  const averageAll = averageOf(samples);
+  const averageFive = averageOf(samples.slice(-5));
+  const averageTen = averageOf(samples.slice(-10));
+  const currentDelta = Number.isFinite(fuel.last) && Number.isFinite(averageFive)
+    ? fuel.last - averageFive
+    : NaN;
+  setText(document.getElementById("fuel-per-lap-primary"), value(fuel.average, 2));
+  setText(document.getElementById("fuel-per-lap-summary-primary"), value(fuel.average, 2));
+  setText(document.getElementById("fuel-per-lap-average"), value(averageAll, 2));
+  setText(document.getElementById("fuel-per-lap-five"), value(averageFive, 2));
+  setText(document.getElementById("fuel-per-lap-ten"), value(averageTen, 2));
+  setText(
+    document.getElementById("fuel-delta-value"),
+    Number.isFinite(currentDelta) ? `${currentDelta >= 0 ? "+" : ""}${currentDelta.toFixed(2)} L / LAP` : "--",
+  );
+  const deltaLine = document.getElementById("fuel-delta-line");
+  const deltaArea = document.getElementById("fuel-delta-area");
+  if (deltaLine && deltaArea && samples.length > 1 && Number.isFinite(averageFive)) {
+    const deltaPoints = samples.slice(-20).map((sample, index, values) => {
+      const x = 260 * index / Math.max(1, values.length - 1);
+      const delta = Math.max(-0.25, Math.min(0.25, sample - averageFive));
+      const y = 45 - (delta / 0.25) * 30;
+      return `${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+    deltaLine.setAttribute("d", `M${deltaPoints.join(" L")}`);
+    deltaArea.setAttribute("d", `M${deltaPoints[0]} L${deltaPoints.join(" L")} L260 75 L0 75 Z`);
+  } else {
+    deltaLine?.setAttribute("d", "");
+    deltaArea?.setAttribute("d", "");
+  }
+  const maxFuel = Number.isFinite(fuel.capacity) && fuel.capacity > 0 ? fuel.capacity : Math.max(fuel.currentFuel || 1, 1);
+  const totalLaps = Math.max(1, Number.isFinite(fuel.remaining) ? fuel.remaining : 10);
+  const point = (index, amount, count = totalLaps) => {
+    const x = 48 + (832 * index / Math.max(1, count));
+    const y = 246 - (216 * Math.max(0, Math.min(maxFuel, amount)) / maxFuel);
+    return `${x.toFixed(1)} ${y.toFixed(1)}`;
+  };
+  const projected = document.getElementById("fuel-chart-projected");
+  const actual = document.getElementById("fuel-chart-actual");
+  const current = document.getElementById("fuel-chart-current");
+  if (projected && Number.isFinite(fuel.currentFuel) && Number.isFinite(fuel.selectedRate)) {
+    const endFuel = fuel.currentFuel - fuel.selectedRate * totalLaps;
+    projected.setAttribute("d", `M${point(0, fuel.currentFuel)} L${point(totalLaps, endFuel)}`);
+  } else projected?.setAttribute("d", "");
+  if (actual && samples.length && Number.isFinite(fuel.currentFuel)) {
+    let amount = fuel.currentFuel + samples.reduce((sum, sample) => sum + sample, 0);
+    const points = [point(0, amount, samples.length)];
+    samples.forEach((sample, index) => { amount -= sample; points.push(point(index + 1, amount, samples.length)); });
+    actual.setAttribute("d", `M${points.join(" L")}`);
+  } else actual?.setAttribute("d", "");
+  if (current) {
+    const [cx, cy] = point(0, fuel.currentFuel || 0).split(" ");
+    current.setAttribute("cx", cx); current.setAttribute("cy", cy);
+  }
+}
+
 function scheduleTrackMapFrame() {
   if (activeScreen !== "map" || mapRenderFrame !== null) return;
   mapRenderFrame = requestAnimationFrame(renderTrackMapAt60Hz);
@@ -3142,6 +4484,7 @@ function scheduleRender(snapshot) {
 function renderState(snapshot, frameTime = performance.now()) {
   const isNewSnapshot = snapshot !== latestSnapshot;
   latestSnapshot = snapshot;
+  renderFuelStrategy(snapshot.telemetry || {});
   if (isNewSnapshot) lastSnapshotAt = Date.now();
   if (!isUpdatingRefreshRate && [10, 30, 60].includes(snapshot.refresh_rate_hz)) {
     showRefreshRate(snapshot.refresh_rate_hz);
@@ -3166,12 +4509,23 @@ function renderState(snapshot, frameTime = performance.now()) {
   // Old frames are deliberately not rendered. A frozen value is more
   // dangerous trackside than an explicit unavailable marker.
   const telemetry = hasRecentTelemetry ? sourceTelemetry : {};
+  renderFuelCalculator(telemetry);
   const pitTireChanges = telemetry.pit_tire_changes || {};
   const fastRepairsRemaining = formatFastRepairsRemaining(
     telemetry.fast_repairs_limit,
     telemetry.player_fast_repairs_used,
   );
   const hasNoFastRepairs = fastRepairsRemaining === "0";
+  const testRepairButtons = document.querySelectorAll(
+    ".test-pit-status-copy .test-repair:not(.test-repair-top)",
+  );
+  const hasAvailableFastRepair = fastRepairsRemaining === "∞"
+    || (Number.isFinite(Number(fastRepairsRemaining)) && Number(fastRepairsRemaining) > 0);
+  testRepairButtons.forEach((testRepairButton) => {
+    testRepairButton.hidden = !hasAvailableFastRepair;
+    testRepairButton.setAttribute("aria-hidden", String(!hasAvailableFastRepair));
+    if (!hasAvailableFastRepair) testRepairButton.setAttribute("aria-pressed", "false");
+  });
   pitFastRepairToggleEls.forEach((button) => {
     button.disabled = hasNoFastRepairs;
     button.title = hasNoFastRepairs ? "No fast repairs remaining" : "";
@@ -3196,6 +4550,16 @@ function renderState(snapshot, frameTime = performance.now()) {
     }
     pitCarTearoffToggleEl?.classList.remove("has-command-error");
   }
+  if (typeof telemetry.pit_windscreen_tearoff === "boolean") {
+    document.querySelectorAll(".test-windscreen-tearoff").forEach((button) => {
+      if (button.classList.contains("is-command-pending")) return;
+      button.setAttribute(
+        "aria-pressed",
+        String(telemetry.pit_windscreen_tearoff),
+      );
+      button.classList.remove("has-command-error");
+    });
+  }
   const telemetryTireEstimates = telemetry.tire_change_estimates;
   if (telemetryTireEstimates && typeof telemetryTireEstimates === "object") {
     pitTireChangeEstimates = {
@@ -3210,11 +4574,14 @@ function renderState(snapshot, frameTime = performance.now()) {
   }
   pitTireChangeButtons.forEach((button) => {
     const selected = pitTireChanges[button.dataset.wheel];
-    if (!button.disabled && typeof selected === "boolean") {
+    if (!button.classList.contains("is-command-pending") && typeof selected === "boolean") {
       button.setAttribute("aria-pressed", String(selected));
       button.classList.remove("has-command-error");
     }
   });
+  syncTestTireChangesFromTelemetry(pitTireChanges);
+  syncTestTireCompoundFromTelemetry(telemetry.pit_tire_compound);
+  syncPitAllTiresToggle();
   updatePitTireChangeEstimate();
   if (isNewSnapshot) recordMapTelemetrySample(
     telemetry.track_map,
@@ -3245,8 +4612,8 @@ function renderState(snapshot, frameTime = performance.now()) {
   const playerInputs = telemetry.player_inputs || {};
   const tireWear = telemetry.tire_wear || {};
   const tireTemperature = telemetry.tire_temperature || {};
-  const brakeTemperature = telemetry.brake_temperature || {};
   const tirePressure = telemetry.tire_pressure || {};
+  const brakeTemperature = telemetry.brake_temperature || {};
   const playerRpm = telemetry.player_rpm ?? telemetry.focus_rpm;
   const playerFuelLevel = telemetry.player_fuel_level ?? telemetry.fuel_level;
   const focusedClassCarCount = getFocusedClassCarCount(telemetry);
@@ -3277,13 +4644,21 @@ function renderState(snapshot, frameTime = performance.now()) {
     ? `${formatNumber(telemetry.weather.humidity, 0)}%`
     : "--");
   setText(windDirectionEl, formatWindDirection(telemetry.weather?.wind_direction));
+  updateWindDirectionArrow(telemetry.weather?.wind_direction);
   setText(airTempEl, formatTemperature(telemetry.weather?.air_temp));
   setText(trackTempEl, formatTemperature(telemetry.weather?.track_temp));
-  setText(trackWetnessEl, formatTrackWetness(telemetry.weather?.track_wetness));
-  setText(trackSkiesEl, formatSkies(telemetry.weather?.skies));
-  setText(trackDeclaredWetEl, typeof telemetry.weather?.weather_declared_wet === "boolean"
-    ? (telemetry.weather.weather_declared_wet ? "YES" : "NO")
+  setText(cloudCoverEl, formatSkies(telemetry.weather?.skies));
+  setText(rainStateEl, formatRainState(
+    telemetry.weather?.rain_state,
+    telemetry.weather?.precipitation,
+  ));
+  setText(precipitationEl, typeof telemetry.weather?.precipitation === "number"
+    ? `${formatNumber(telemetry.weather.precipitation, 0)}%`
     : "--");
+  setText(fogEl, typeof telemetry.weather?.fog === "number"
+    ? `${formatNumber(telemetry.weather.fog, 0)}%`
+    : "--");
+  setText(trackWetnessEl, formatTrackWetness(telemetry.weather?.track_wetness));
   setText(carNumberEl, telemetry.car_number || "--");
   setText(driverNameEl, telemetry.driver_name || "Unknown driver");
   setText(carNameEl, telemetry.car_name || "Unknown car");
@@ -3298,7 +4673,7 @@ function renderState(snapshot, frameTime = performance.now()) {
     : "--");
   setText(focusGearEl, formatGear(telemetry.focus_gear));
   setText(focusRpmEl, formatInteger(telemetry.focus_rpm));
-  setText(speedKphEl, formatSpeed(playerInputs.speed_ms));
+  setText(speedKphEl, formatSpeed(telemetry.focused_speed_ms ?? playerInputs.speed_ms));
 
   setText(statusTireLfTempEl, formatTemperature(tireTemperature.lf, 0, false));
   setText(statusTireRfTempEl, formatTemperature(tireTemperature.rf, 0, false));
@@ -3322,24 +4697,29 @@ function renderState(snapshot, frameTime = performance.now()) {
   setWearStatusBar(statusTireRfWearBarEl, tireWear.rf);
   setWearStatusBar(statusTireLrWearBarEl, tireWear.lr);
   setWearStatusBar(statusTireRrWearBarEl, tireWear.rr);
-  setText(statusTireLfPressureEl, formatTirePressure(tirePressure.lf));
-  setText(statusTireRfPressureEl, formatTirePressure(tirePressure.rf));
-  setText(statusTireLrPressureEl, formatTirePressure(tirePressure.lr));
-  setText(statusTireRrPressureEl, formatTirePressure(tirePressure.rr));
+  Object.entries(statusTirePressureGauges).forEach(([position, gauge]) => {
+    const pressureSource = tirePressure[position];
+    const rawPressure = Number(pressureSource);
+    const pressureBar = pressureSource != null && Number.isFinite(rawPressure)
+      ? (rawPressure > 10 ? rawPressure / 100 : rawPressure)
+      : null;
+    const displayPressure = formatPressure(
+      pressureSource != null && Number.isFinite(rawPressure) ? rawPressure : null,
+    );
+    setText(gauge.querySelector("strong"), displayPressure);
+    const level = pressureBar == null
+      ? 0
+      : Math.max(0, Math.min(100, ((pressureBar - 1) / 1.5) * 100));
+    gauge.querySelector(".tyre-pressure-scale i")
+      ?.style.setProperty("--pressure-level", `${level}%`);
+    gauge.classList.toggle("is-unavailable", pressureBar == null);
+  });
 
-  const batterySoc = normalizeTelemetryPercent(telemetry.battery_soc);
-  setText(statusBatteryEl, batterySoc != null ? `${Math.round(batterySoc)}%` : "--");
-  if (statusBatteryPanelEl) {
-    statusBatteryPanelEl.hidden = telemetry.player_is_gtp !== true;
-  }
-  setStatusBar(statusBatteryBarEl, batterySoc, 0, 100, "height");
-  setVisualState(statusBatteryBarEl, getLevelState(batterySoc, 10, 25));
   setText(statusEngineTempEl, formatTemperature(telemetry.engine_temperature));
   setStatusBar(statusEngineTempBarEl, telemetry.engine_temperature, 60, 130);
   setSystemState("engine", getThermalState(telemetry.engine_temperature, 60, 115, 125), statusEngineTempBarEl);
-  setText(statusRpmValueEl, playerRpm != null
-    ? `${formatInteger(playerRpm)} rpm`
-    : "--");
+  setText(statusOilTempEl, formatTemperature(telemetry.oil_temperature));
+  renderOilTemperatureHistory(telemetry.oil_temperature, telemetry.session_key);
   setStatusBar(statusRpmBarEl, playerRpm, 0, telemetry.rpm_limit || 10000);
   const rpmRatio = typeof playerRpm === "number" && playerRpm >= 0
     ? playerRpm / (telemetry.rpm_limit || 10000)
@@ -3351,7 +4731,15 @@ function renderState(snapshot, frameTime = performance.now()) {
     ? playerFuelLevel / (telemetry.fuel_capacity || 100)
     : null;
   setSystemState("fuel", fuelRatio == null ? "unavailable" : getLevelState(fuelRatio, 0.1, 0.25), statusFuelBarEl);
-  setText(statusEmptyLapEl, estimateEmptyLap(telemetry));
+  setText(statusWaterTempEl, formatTemperature(telemetry.water_temperature));
+  recordWaterTemperature(
+    telemetry.engine_temperature,
+    telemetry.session_key,
+    Number.isFinite(Number(snapshot.updated_at))
+      ? Number(snapshot.updated_at) * 1000
+      : Date.now(),
+  );
+  setText(statusEmptyLapEl, estimateEmptyLap(telemetry).replace(/^lap\s*/, ""));
 
   setText(leaderboardCurrentLapEl, telemetry.current_lap ?? "--");
   setText(leaderboardPositionEl, telemetry.position != null ? `P${telemetry.position}` : "--");
@@ -3386,11 +4774,7 @@ function renderState(snapshot, frameTime = performance.now()) {
     mapCarSampleHistory.clear();
     mapSampleClock = null;
     loadTrackSvg();
-    // Update map header label
-    const labelEl = document.querySelector('.screen[data-screen-panel="map"] .module-head .section-label');
-    if (labelEl) {
-      labelEl.textContent = trackName || "Track Map";
-    }
+    refreshTrackMapLabels(telemetry.pit_exit_prediction || null);
   }
 }
 
@@ -3409,7 +4793,7 @@ async function loadState() {
     const snapshot = await response.json();
     updatePitCarIconFromTelemetry(snapshot.telemetry);
     scheduleRender(snapshot);
-  } catch (error) {
+  } catch {
     if (Date.now() - lastSnapshotAt > 5000) {
       scheduleRender({
         connected: false,
@@ -3455,7 +4839,7 @@ function startStreaming() {
       const snapshot = JSON.parse(event.data);
       updatePitCarIconFromTelemetry(snapshot.telemetry);
       scheduleRender(snapshot);
-    } catch (error) {
+    } catch {
       ensurePollingFallback();
     }
   };

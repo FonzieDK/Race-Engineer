@@ -5,8 +5,6 @@ from __future__ import annotations
 import atexit
 import os
 import time
-from pathlib import Path
-
 from race_engineer.events.store import EventStore
 from race_engineer.events.tracker import RaceEventTracker
 from race_engineer.paths import COLLECTOR_LOCK_PATH, DATABASE_PATH
