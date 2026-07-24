@@ -53,6 +53,60 @@ class TelemetryReader:
         self._active_tire_service = None
         self._pending_tire_selection = []
         self._current_tire_estimates = self._default_tire_estimates()
+        self._fuel_strategy_session_key = None
+        self._fuel_strategy_lap = None
+        self._fuel_strategy_level = None
+        self._fuel_strategy_samples = []
+        self._focused_speed_sample = None
+        self._focused_speed_ms = None
+
+    @staticmethod
+    def _track_length_metres(value):
+        """Convert iRacing's WeekendInfo TrackLength value to metres."""
+        if isinstance(value, (int, float)):
+            return float(value) * 1000.0 if value > 0 else None
+        if not isinstance(value, str):
+            return None
+        try:
+            length = float(value.strip().split()[0].replace(",", "."))
+        except (ValueError, IndexError):
+            return None
+        return length * (1609.344 if "mi" in value.lower() else 1000.0) if length > 0 else None
+
+    def _estimate_focused_speed(self, car_idx, lap_progress, session_time, track_length):
+        """Estimate camera-car speed from successive scored track positions."""
+        try:
+            sample = (int(car_idx), float(lap_progress), float(session_time))
+            track_length = float(track_length)
+        except (TypeError, ValueError):
+            self._focused_speed_sample = None
+            self._focused_speed_ms = None
+            return None
+
+        previous = getattr(self, "_focused_speed_sample", None)
+        self._focused_speed_sample = sample
+        if previous is None or previous[0] != sample[0]:
+            self._focused_speed_ms = None
+            return None
+
+        elapsed = sample[2] - previous[2]
+        if elapsed <= 0 or elapsed > 2:
+            self._focused_speed_ms = None
+            return None
+
+        progress_delta = sample[1] - previous[1]
+        if progress_delta < -0.5:
+            progress_delta += 1.0
+        elif progress_delta > 0.5:
+            progress_delta -= 1.0
+        speed = max(0.0, progress_delta * track_length / elapsed)
+        if speed > 150:
+            self._focused_speed_ms = None
+            return None
+
+        previous_speed = getattr(self, "_focused_speed_ms", None)
+        self._focused_speed_ms = speed if previous_speed is None else previous_speed * 0.65 + speed * 0.35
+        return self._focused_speed_ms
 
     def _default_tire_estimates(self):
         return {
@@ -260,6 +314,11 @@ class TelemetryReader:
                     selected_others.append(position)
 
             sent = bool(self.ir.pit_command(irsdk.PitCommandMode.clear_tires, 0))
+            # Broadcast pit commands are asynchronous. If the remaining tire
+            # selections are restored in the same instant, iRacing can process
+            # them before the clear command has updated its pit black box.
+            if selected_others:
+                time.sleep(0.075)
             for position in selected_others:
                 sent = bool(self.ir.pit_command(commands[position], 0)) and sent
             return sent
@@ -278,6 +337,81 @@ class TelemetryReader:
         )
         with self._pit_command_lock:
             return bool(self.ir.pit_command(command, 0))
+
+    def set_tire_compound(self, compound):
+        """Select a tire compound and request tires on all four corners."""
+        compound = str(compound or "").strip().lower()
+        if compound not in {"dry", "wet"}:
+            raise ValueError("Unsupported tire compound")
+        if not self.is_connected():
+            return False
+
+        compound_index = self._pit_tire_index(compound)
+        with self._pit_command_lock:
+            sent = bool(
+                self.ir.pit_command(
+                    irsdk.PitCommandMode.tc,
+                    compound_index,
+                )
+            )
+            for command in (
+                irsdk.PitCommandMode.lf,
+                irsdk.PitCommandMode.rf,
+                irsdk.PitCommandMode.lr,
+                irsdk.PitCommandMode.rr,
+            ):
+                sent = bool(self.ir.pit_command(command, 0)) and sent
+            return sent
+
+    def _pit_tire_index(self, compound):
+        """Resolve DRY/WET to this car's iRacing tire index."""
+        driver_info = self.ir["DriverInfo"] or {}
+        tires = driver_info.get("DriverTires", []) if isinstance(driver_info, dict) else []
+        for tire in tires if isinstance(tires, list) else []:
+            if not isinstance(tire, dict):
+                continue
+            tire_index = tire.get("TireIndex")
+            tire_type = str(tire.get("TireCompoundType") or "").strip().lower()
+            is_wet = "wet" in tire_type or "rain" in tire_type
+            if isinstance(tire_index, int) and (
+                (compound == "wet" and is_wet)
+                or (compound == "dry" and tire_type and not is_wet)
+            ):
+                return tire_index
+        return {"dry": 0, "wet": 1}[compound]
+
+    @staticmethod
+    def _pit_tire_type(driver_info, tire_index):
+        """Resolve an iRacing tire index to the DRY/WET UI grouping."""
+        tires = driver_info.get("DriverTires", []) if isinstance(driver_info, dict) else []
+        for tire in tires if isinstance(tires, list) else []:
+            if not isinstance(tire, dict) or tire.get("TireIndex") != tire_index:
+                continue
+            tire_type = str(tire.get("TireCompoundType") or "").strip().lower()
+            if "wet" in tire_type or "rain" in tire_type:
+                return "wet"
+            if tire_type:
+                return "dry"
+        return None
+
+    def set_pit_fuel(self, liters):
+        """Set the fuel amount for the next stop, rounded up to iRacing litres."""
+        if isinstance(liters, bool) or not isinstance(liters, (int, float)):
+            raise ValueError("liters must be a number")
+        if not math.isfinite(liters) or liters < 0 or liters > 1000:
+            raise ValueError("liters must be between 0 and 1000")
+        if not self.is_connected():
+            return False, 0
+
+        requested_liters = int(math.ceil(liters))
+        command = (
+            irsdk.PitCommandMode.fuel
+            if requested_liters > 0
+            else irsdk.PitCommandMode.clear_fuel
+        )
+        with self._pit_command_lock:
+            sent = bool(self.ir.pit_command(command, requested_liters))
+        return sent, requested_liters
 
     def _get_session_key(
         self,
@@ -535,6 +669,88 @@ class TelemetryReader:
         return math.degrees(value) % 360.0
 
     @staticmethod
+    def _angle_degrees(value):
+        """Convert a signed iRacing angle from radians to degrees."""
+        if not isinstance(value, (int, float)) or not math.isfinite(value):
+            return None
+        return math.degrees(value)
+
+    def _build_fuel_strategy(
+        self,
+        session_key,
+        completed_laps,
+        fuel_level,
+        laps_remaining,
+        on_pit_road=False,
+        under_caution=False,
+        reserve_laps=0.25,
+    ):
+        """Track clean-lap consumption and expose JRT-style fuel estimates."""
+        if getattr(self, "_fuel_strategy_session_key", None) != session_key:
+            self._fuel_strategy_session_key = session_key
+            self._fuel_strategy_lap = completed_laps
+            self._fuel_strategy_level = fuel_level
+            self._fuel_strategy_samples = []
+
+        previous_lap = getattr(self, "_fuel_strategy_lap", None)
+        previous_level = getattr(self, "_fuel_strategy_level", None)
+        samples = getattr(self, "_fuel_strategy_samples", [])
+        if (
+            isinstance(completed_laps, (int, float))
+            and isinstance(previous_lap, (int, float))
+            and completed_laps > previous_lap
+            and isinstance(fuel_level, (int, float))
+            and isinstance(previous_level, (int, float))
+        ):
+            used = previous_level - fuel_level
+            # Every completed lap may contribute. Refuelling and implausible
+            # sensor jumps are still rejected by the positive-use limits.
+            if 0 < used < 50:
+                samples.append(round(float(used), 4))
+                del samples[:-20]
+            self._fuel_strategy_lap = completed_laps
+            self._fuel_strategy_level = fuel_level
+        elif isinstance(completed_laps, (int, float)) and completed_laps < (previous_lap or 0):
+            self._fuel_strategy_lap = completed_laps
+            self._fuel_strategy_level = fuel_level
+
+        last = samples[-1] if samples else None
+        average_5 = sum(samples[-5:]) / len(samples[-5:]) if samples else None
+        maximum = max(samples) if samples else None
+        selected = average_5
+        estimated_laps = (
+            fuel_level / selected
+            if isinstance(fuel_level, (int, float)) and selected and selected > 0
+            else None
+        )
+        target_laps = (
+            max(0.0, float(laps_remaining)) + max(0.0, float(reserve_laps))
+            if isinstance(laps_remaining, (int, float))
+            else None
+        )
+        fuel_needed = selected * target_laps if selected and target_laps is not None else None
+        fuel_to_add = (
+            max(0.0, fuel_needed - fuel_level)
+            if fuel_needed is not None and isinstance(fuel_level, (int, float))
+            else None
+        )
+        return {
+            "sample_count": len(samples),
+            "lap_samples": list(samples),
+            "last_lap": last,
+            "average_5_laps": round(average_5, 4) if average_5 is not None else None,
+            "maximum": maximum,
+            "selected_mode": "average_5_laps",
+            "selected_consumption": round(selected, 4) if selected is not None else None,
+            "estimated_laps": round(estimated_laps, 2) if estimated_laps is not None else None,
+            "target_laps": round(target_laps, 2) if target_laps is not None else None,
+            "fuel_needed": round(fuel_needed, 2) if fuel_needed is not None else None,
+            "fuel_to_add": round(fuel_to_add, 2) if fuel_to_add is not None else None,
+            "reserve_laps": reserve_laps,
+            "fill_rate_lps": getattr(self, "_fuel_fill_rate_lps", 2.5),
+        }
+
+    @staticmethod
     def _race_has_started(session_type, session_state, session_flags):
         if not isinstance(session_type, str) or session_type.strip().casefold() != "race":
             return False
@@ -640,8 +856,12 @@ class TelemetryReader:
         class_name = driver.get("CarClassShortName") or driver.get("CarClassName")
         if isinstance(class_name, str) and class_name.strip():
             class_name = class_name.strip()
+            if class_name.casefold() == "imsa23":
+                return "GT3"
             if class_name.casefold().endswith(" class"):
                 class_name = class_name[:-6].rstrip()
+            if "dallara p217" in class_name.casefold():
+                return "LMP2"
             return class_name
 
         # Some iRacing sessions (notably AI/multiclass sessions) omit the class
@@ -655,7 +875,7 @@ class TelemetryReader:
         class_markers = (
             ("Porsche Cup", ("gt3 cup", "992 cup", "991 cup")),
             ("GTP", ("gtp", "arx-06", "m hybrid v8", "499p", "v-series.r", "porsche 963")),
-            ("LMP2", ("lmp2",)),
+            ("LMP2", ("lmp2", "dallara p217", "p217")),
             ("LMP3", ("lmp3",)),
             ("GT4", ("gt4",)),
             ("GT3", ("gt3",)),
@@ -757,7 +977,9 @@ class TelemetryReader:
         if track_location == -1:
             return "garage"
         if is_on_pit_road:
-            return "pit"
+            # iRacing TrackSurface 1 means the car is stationary in its
+            # assigned pit stall; the rest of pit road is the entry phase.
+            return "pit_stall" if track_location == 1 else "pit"
         return "track"
 
     def _get_timed_car_status(
@@ -794,7 +1016,7 @@ class TelemetryReader:
         if not no_driver:
             self._cars_observed_present.add(history_key)
             self._car_presence_history.pop(history_key, None)
-            return "pit" if is_on_pit_road else "track"
+            return self._get_car_status(is_on_pit_road, track_location)
 
         # Do not invent a recent pit arrival after Race-Engineer starts. If the
         # first telemetry already says the car is vacant, it belongs in the
@@ -809,7 +1031,7 @@ class TelemetryReader:
 
         if session_time - absent_since > 60:
             return "garage"
-        return "pit" if is_on_pit_road else "track"
+        return self._get_car_status(is_on_pit_road, track_location)
 
     def _get_driver_info(self, car_idx):
         driver_info = self.ir["DriverInfo"] or {}
@@ -1029,6 +1251,23 @@ class TelemetryReader:
             for driver in drivers
             if driver.get("CarIdx") is not None
         }
+        team_drivers_by_idx = {}
+        for driver in drivers:
+            car_idx = driver.get("CarIdx")
+            name = driver.get("UserName") or driver.get("AbbrevName")
+            if car_idx is None or not name:
+                continue
+            names = team_drivers_by_idx.setdefault(car_idx, [])
+            if name not in names:
+                names.append(name)
+
+        def team_driver_names(car_idx, active_driver):
+            names = list(team_drivers_by_idx.get(car_idx, []))
+            active_name = active_driver.get("UserName") or active_driver.get("AbbrevName")
+            if active_name in names:
+                names.remove(active_name)
+                names.insert(0, active_name)
+            return names
         current_session = self._get_current_session()
         results_positions = current_session.get("ResultsPositions", [])
 
@@ -1155,6 +1394,7 @@ class TelemetryReader:
                     "driver_id": driver.get("UserID"),
                     "team_name": driver.get("TeamName") or "--",
                     "driver_name": driver.get("UserName") or driver.get("AbbrevName") or "Unknown driver",
+                    "team_driver_names": team_driver_names(car_idx, driver),
                     "incident_count": self._get_incident_count(driver),
                     "car_name": driver.get("CarScreenName", "Unknown car"),
                     "tire_compound": self._array_value(tire_compound_values, car_idx),
@@ -1195,10 +1435,18 @@ class TelemetryReader:
             return enrich_standings(lock_to_pre_race_grid(standings))
 
         # Fallback if session results are temporarily unavailable.
+        seen_car_indices = set()
         for driver in drivers:
             car_idx = driver.get("CarIdx")
-            if car_idx is None or driver.get("IsSpectator") == 1 or driver.get("CarIsPaceCar") == 1:
+            if (
+                car_idx is None
+                or car_idx in seen_car_indices
+                or driver.get("IsSpectator") == 1
+                or driver.get("CarIsPaceCar") == 1
+            ):
                 continue
+            seen_car_indices.add(car_idx)
+            driver = drivers_by_idx.get(car_idx, driver)
 
             progress = self._clamp_progress(self._array_value(lap_dist_pct, car_idx))
             standings.append({
@@ -1211,6 +1459,7 @@ class TelemetryReader:
                 "driver_id": driver.get("UserID"),
                 "team_name": driver.get("TeamName") or "--",
                 "driver_name": driver.get("UserName") or driver.get("AbbrevName") or "Unknown driver",
+                "team_driver_names": team_driver_names(car_idx, driver),
                 "incident_count": self._get_incident_count(driver),
                 "car_name": driver.get("CarScreenName", "Unknown car"),
                 "tire_compound": self._array_value(tire_compound_values, car_idx),
@@ -1599,6 +1848,8 @@ class TelemetryReader:
             weather_declared_wet = self._get_var("WeatherDeclaredWet")
             humidity = self._humidity_percent(self._get_var("RelativeHumidity"))
             precipitation = self._precipitation_percent(self._get_var("Precipitation"))
+            fog = self._precipitation_percent(self._get_var("FogLevel"))
+            solar_altitude = self._angle_degrees(self._get_var("SolarAltitude"))
             # The iRacing SDK exposes wind velocity as WindVel (m/s) and wind
             # direction as WindDir (radians).
             wind_speed = self._get_var("WindVel")
@@ -1615,6 +1866,9 @@ class TelemetryReader:
             weekend_options = weekend_info.get("WeekendOptions") or {}
             if not isinstance(weekend_options, dict):
                 weekend_options = {}
+            track_rubber = weekend_options.get("TrackSurface")
+            if track_rubber is None:
+                track_rubber = weekend_info.get("TrackSurface")
             weather_type = (
                 weekend_info.get("TrackWeatherType")
                 or weekend_options.get("WeatherType")
@@ -1651,6 +1905,7 @@ class TelemetryReader:
                     track_name = None
 
             track_id = weekend_info.get("TrackID")
+            track_length_metres = self._track_length_metres(weekend_info.get("TrackLength"))
             track_internal_name = weekend_info.get("TrackName")
             if isinstance(track_internal_name, str):
                 track_internal_name = track_internal_name.strip() or None
@@ -1670,6 +1925,16 @@ class TelemetryReader:
             )
             pit_service_flags = self._get_var("PitSvFlags", 0)
             pit_service_flags = pit_service_flags if isinstance(pit_service_flags, int) else 0
+            pit_tire_compound_value = self._get_var("PitSvTireCompound")
+            pit_tire_compound = self._pit_tire_type(
+                driver_info,
+                pit_tire_compound_value,
+            )
+            if pit_tire_compound is None:
+                pit_tire_compound = self._pit_tire_type(
+                    driver_info,
+                    self._get_var("PlayerTireCompound"),
+                )
             player_car_name = player_driver.get("CarScreenName", "Unknown car")
             tire_usage = {
                 "lf": self._get_var("LFTiresUsed"),
@@ -1760,6 +2025,16 @@ class TelemetryReader:
                 "focus_rpm": self._array_value(focus_rpm_values, focus_car_idx),
                 "focus_gear": self._array_value(focus_gear_values, focus_car_idx),
                 "focus_gap": self._array_value(focus_gap_values, focus_car_idx),
+                "focused_speed_ms": (
+                    self._get_var("Speed")
+                    if is_player_car
+                    else self._estimate_focused_speed(
+                        focus_car_idx,
+                        self._array_value(lap_dist_pct, focus_car_idx),
+                        session_time,
+                        track_length_metres,
+                    )
+                ),
                 "tire_compound": self._array_value(focus_tire_compound_values, focus_car_idx),
                 "fast_repairs_used": self._array_value(focus_fast_repairs_values, focus_car_idx),
                 "player_fast_repairs_used": player_fast_repairs_used,
@@ -1767,18 +2042,32 @@ class TelemetryReader:
                 "fuel_level": fuel_level,
                 "player_fuel_level": player_fuel_level,
                 "player_fuel_use_per_hour": player_fuel_use_per_hour,
+                "player_on_pit_road": bool(
+                    self._array_value(on_pit_road, player_car_idx, False)
+                ),
                 "player_rpm": player_rpm,
                 "fuel_capacity": fuel_capacity,
                 "fuel_density": fuel_density,
                 "rpm_limit": rpm_limit,
                 "fuel_use_per_hour": player_fuel_use_per_hour if is_player_car else None,
+                "fuel_strategy": self._build_fuel_strategy(
+                    session_key,
+                    self._array_value(laps_completed, player_car_idx),
+                    player_fuel_level,
+                    session_laps_remain_estimated,
+                    bool(self._array_value(on_pit_road, player_car_idx, False)),
+                    bool(session_flags & (irsdk.Flags.caution | irsdk.Flags.caution_waving)),
+                ),
                 "weather": {
                     "air_temp": air_temp,
                     "track_temp": track_temp,
                     "humidity": humidity,
                     "precipitation": precipitation,
+                    "fog": fog,
+                    "solar_altitude": solar_altitude,
                     "wind_speed": wind_speed,
                     "wind_direction": wind_direction,
+                    "track_rubber": track_rubber,
                     "track_wetness": track_wetness,
                     "skies": skies,
                     "weather_declared_wet": weather_declared_wet,
@@ -1803,6 +2092,8 @@ class TelemetryReader:
                 "battery_voltage": None,
                 "battery_soc": None,
                 "engine_temperature": None,
+                "oil_temperature": None,
+                "water_temperature": None,
                 "session_time": session_time,
                 "session_time_of_day": session_time_of_day,
                 "replay_session_time": replay_session_time,
@@ -1832,6 +2123,7 @@ class TelemetryReader:
                     "lr": bool(pit_service_flags & irsdk.PitSvFlags.lr_tire_change),
                     "rr": bool(pit_service_flags & irsdk.PitSvFlags.rr_tire_change),
                 },
+                "pit_tire_compound": pit_tire_compound,
                 "pit_windscreen_tearoff": bool(
                     pit_service_flags & irsdk.PitSvFlags.windshield_tearoff
                 ),
@@ -1873,9 +2165,11 @@ class TelemetryReader:
             }
             data["battery_voltage"] = self._get_var("Voltage")
             data["battery_soc"] = self._get_var("EnergyERSBatteryPct")
-            data["engine_temperature"] = self._get_var("WaterTemp")
+            data["oil_temperature"] = self._get_var("OilTemp")
+            data["water_temperature"] = self._get_var("WaterTemp")
+            data["engine_temperature"] = data["water_temperature"]
             if data["engine_temperature"] is None:
-                data["engine_temperature"] = self._get_var("OilTemp")
+                data["engine_temperature"] = data["oil_temperature"]
 
             return data
         finally:

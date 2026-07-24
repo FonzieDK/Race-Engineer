@@ -1,21 +1,27 @@
 {
   "files.exclude": {
     "**/__pycache__": true,
+    ".ruff_cache": true,
+    ".test-run-temp": true,
     ".build-tools": true,
     "build": true,
     "dist-python": true,
     "logs": true,
     "node_modules": true,
     "out": true,
+    "test-tmp": true,
     "venv": true
   },
   "search.exclude": {
     ".build-tools": true,
+    ".ruff_cache": true,
+    ".test-run-temp": true,
     "build": true,
     "dist-python": true,
     "logs": true,
     "node_modules": true,
     "out": true,
+    "test-tmp": true,
     "venv": true
   }
 }

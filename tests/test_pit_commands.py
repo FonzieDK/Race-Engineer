@@ -117,6 +117,75 @@ class PitCommandTests(unittest.TestCase):
 
         self.assertEqual(reader.ir.commands, [(irsdk.PitCommandMode.clear_ws, 0)])
 
+    def test_selecting_dry_compound_requests_all_four_tires(self):
+        reader = self.make_reader()
+
+        self.assertTrue(reader.set_tire_compound("dry"))
+
+        self.assertEqual(reader.ir.commands, [
+            (irsdk.PitCommandMode.tc, 0),
+            (irsdk.PitCommandMode.lf, 0),
+            (irsdk.PitCommandMode.rf, 0),
+            (irsdk.PitCommandMode.lr, 0),
+            (irsdk.PitCommandMode.rr, 0),
+        ])
+
+    def test_selecting_wet_compound_requests_all_four_tires(self):
+        reader = self.make_reader()
+
+        self.assertTrue(reader.set_tire_compound("wet"))
+
+        self.assertEqual(reader.ir.commands, [
+            (irsdk.PitCommandMode.tc, 1),
+            (irsdk.PitCommandMode.lf, 0),
+            (irsdk.PitCommandMode.rf, 0),
+            (irsdk.PitCommandMode.lr, 0),
+            (irsdk.PitCommandMode.rr, 0),
+        ])
+
+    def test_compound_command_uses_the_cars_reported_tire_indices(self):
+        reader = self.make_reader({
+            "DriverInfo": {
+                "DriverTires": [
+                    {"TireIndex": 4, "TireCompoundType": "Wet"},
+                    {"TireIndex": 7, "TireCompoundType": "Dry"},
+                ],
+            },
+        })
+
+        self.assertTrue(reader.set_tire_compound("dry"))
+
+        self.assertEqual(
+            reader.ir.commands[0],
+            (irsdk.PitCommandMode.tc, 7),
+        )
+
+    def test_pit_fuel_rounds_up_for_a_safe_iracing_command(self):
+        reader = self.make_reader()
+
+        sent, liters = reader.set_pit_fuel(12.1)
+
+        self.assertTrue(sent)
+        self.assertEqual(liters, 13)
+        self.assertEqual(reader.ir.commands, [(irsdk.PitCommandMode.fuel, 13)])
+
+    def test_zero_pit_fuel_clears_the_selected_fuel(self):
+        reader = self.make_reader()
+
+        sent, liters = reader.set_pit_fuel(0)
+
+        self.assertTrue(sent)
+        self.assertEqual(liters, 0)
+        self.assertEqual(reader.ir.commands, [(irsdk.PitCommandMode.clear_fuel, 0)])
+
+    def test_invalid_pit_fuel_is_rejected(self):
+        reader = self.make_reader()
+
+        with self.assertRaises(ValueError):
+            reader.set_pit_fuel(-0.1)
+        with self.assertRaises(ValueError):
+            reader.set_pit_fuel(float("nan"))
+
     def test_tire_service_time_is_learned_and_persisted_per_car_and_count(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             estimate_path = Path(temporary_directory) / "tire-estimates.json"

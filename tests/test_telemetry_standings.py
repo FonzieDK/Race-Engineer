@@ -12,6 +12,33 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         reader._get_current_session = lambda: {"ResultsPositions": results}
         return reader
 
+    def test_fuel_strategy_learns_clean_laps_and_calculates_required_fuel(self):
+        reader = self.make_reader([])
+        first = reader._build_fuel_strategy("race-1", 2, 40.0, 10)
+        self.assertIsNone(first["selected_consumption"])
+
+        learned = reader._build_fuel_strategy("race-1", 3, 37.5, 9)
+        self.assertEqual(learned["last_lap"], 2.5)
+        self.assertEqual(learned["estimated_laps"], 15.0)
+        self.assertEqual(learned["fuel_needed"], 23.12)
+        self.assertEqual(learned["fuel_to_add"], 0.0)
+
+    def test_fuel_strategy_uses_pit_and_caution_laps_when_consumption_is_valid(self):
+        reader = self.make_reader([])
+        reader._build_fuel_strategy("race-1", 1, 30.0, 10)
+        pit_lap = reader._build_fuel_strategy("race-1", 2, 28.0, 9, on_pit_road=True)
+        caution_lap = reader._build_fuel_strategy("race-1", 3, 27.0, 8, under_caution=True)
+        self.assertEqual(pit_lap["sample_count"], 1)
+        self.assertEqual(caution_lap["sample_count"], 2)
+
+    def test_fuel_strategy_still_rejects_a_refuelling_lap(self):
+        reader = self.make_reader([])
+        reader._build_fuel_strategy("race-1", 1, 10.0, 10)
+        refuel_lap = reader._build_fuel_strategy(
+            "race-1", 2, 30.0, 9, on_pit_road=True
+        )
+        self.assertEqual(refuel_lap["sample_count"], 0)
+
     def test_keeps_complete_field_so_every_class_is_available(self):
         drivers = []
         results = []
@@ -178,6 +205,38 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         self.assertEqual(standings[0]["driver_name"], "Example Driver")
         self.assertEqual(standings[0]["tire_compound"], 2)
 
+    def test_includes_all_team_drivers_once_for_a_shared_car(self):
+        drivers = [
+            {"CarIdx": 0, "CarNumber": "42", "TeamName": "Example Racing", "UserName": "First Driver"},
+            {"CarIdx": 0, "CarNumber": "42", "TeamName": "Example Racing", "UserName": "Second Driver"},
+        ]
+        reader = self.make_reader([{
+            "CarIdx": 0,
+            "Position": 1,
+            "ClassPosition": 0,
+            "LastTime": 90.0,
+        }])
+
+        standings = reader._build_standings(
+            drivers=drivers,
+            lap_dist_pct=[0.5],
+            relative_times=[0.0],
+            estimated_times=[0.0],
+            laps_completed_values=[1],
+            best_lap_times=[89.0],
+            last_lap_times=[90.0],
+            on_pit_road_values=[False],
+            session_time=100.0,
+            focus_car_idx=0,
+        )
+
+        self.assertEqual(len(standings), 1)
+        self.assertEqual(standings[0]["driver_name"], "Second Driver")
+        self.assertEqual(
+            standings[0]["team_driver_names"],
+            ["Second Driver", "First Driver"],
+        )
+
     def test_infers_multiclass_names_when_iracing_omits_them(self):
         drivers = [
             {"CarIdx": 0, "CarClassID": 4029, "CarScreenName": "Acura ARX-06"},
@@ -212,6 +271,22 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         self.assertEqual(
             TelemetryReader._get_class_name({"CarScreenName": "Porsche 911 GT3 Cup (992)"}),
             "Porsche Cup",
+        )
+
+    def test_dallara_p217_is_labeled_as_lmp2(self):
+        self.assertEqual(
+            TelemetryReader._get_class_name({"CarClassShortName": "Dallara P217"}),
+            "LMP2",
+        )
+        self.assertEqual(
+            TelemetryReader._get_class_name({"CarScreenName": "Dallara P217"}),
+            "LMP2",
+        )
+
+    def test_imsa23_short_name_is_labeled_as_gt3(self):
+        self.assertEqual(
+            TelemetryReader._get_class_name({"CarClassShortName": "IMSA23"}),
+            "GT3",
         )
 
     def test_incident_count_prefers_the_highest_valid_iracing_count(self):
@@ -284,7 +359,8 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
     def test_car_status_distinguishes_retired_garage_and_pit_road(self):
         self.assertEqual(TelemetryReader._get_car_status(False, 3, "Mechanical"), "retired")
         self.assertEqual(TelemetryReader._get_car_status(False, -1, "Running"), "garage")
-        self.assertEqual(TelemetryReader._get_car_status(True, 1, "Running"), "pit")
+        self.assertEqual(TelemetryReader._get_car_status(True, 2, "Running"), "pit")
+        self.assertEqual(TelemetryReader._get_car_status(True, 1, "Running"), "pit_stall")
         self.assertEqual(TelemetryReader._get_car_status(False, 3, "Running"), "track")
 
     def test_track_map_marks_cars_on_pit_road(self):
@@ -341,8 +417,8 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         after_one_minute = reader._get_timed_car_status(7, True, 1, 160.0, 300, session_key="race:0")
         over_one_minute = reader._get_timed_car_status(7, True, 1, 160.1, 300, session_key="race:0")
 
-        self.assertEqual(first_seen, "pit")
-        self.assertEqual(after_one_minute, "pit")
+        self.assertEqual(first_seen, "pit_stall")
+        self.assertEqual(after_one_minute, "pit_stall")
         self.assertEqual(over_one_minute, "garage")
 
     def test_car_already_vacant_when_reader_starts_is_immediately_in_garage(self):
@@ -370,8 +446,8 @@ class TelemetryReaderStandingsTests(unittest.TestCase):
         occupied = reader._get_timed_car_status(7, True, 1, 150.0, 3000, session_key="race:0")
         vacant_again = reader._get_timed_car_status(7, True, 1, 200.0, 300, session_key="race:0")
 
-        self.assertEqual(occupied, "pit")
-        self.assertEqual(vacant_again, "pit")
+        self.assertEqual(occupied, "pit_stall")
+        self.assertEqual(vacant_again, "pit_stall")
 
     def test_laps_since_pit_remains_available_after_leaving_pit(self):
         reader = self.make_reader([])

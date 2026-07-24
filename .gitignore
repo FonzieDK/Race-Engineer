@@ -4,6 +4,9 @@ __pycache__/
 venv/
 .venv/
 .pytest_cache/
+.ruff_cache/
+.test-run-temp/
+test-tmp/
 
 # Node / Electron
 node_modules/
@@ -35,3 +38,6 @@ logs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local package caches
+*.tmp

@@ -1,12 +1,15 @@
 {
   "name": "race-engineer",
   "productName": "Race-Engineer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Race-Engineer desktop app for iRacing telemetry",
   "author": "InfiNxt",
   "main": "electron/main.js",
   "scripts": {
     "test": "python -m unittest discover -s tests -p \"test_*.py\" && node --test tests/*.js",
+    "lint": "python -m ruff check race_engineer tests scripts && eslint electron web tests",
+    "format:check": "python -m ruff format --check tests/test_server_security.py && prettier --check eslint.config.js web/ui-utils.js tests/test_ui_security.js package.json",
+    "check": "npm run lint && npm run format:check && npm test",
     "start": "electron .",
     "electron": "electron .",
     "package": "electron-forge package --platform win32 --arch x64",
@@ -16,6 +19,8 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-wix": "^7.11.2",
-    "electron": "^43.1.1"
+    "electron": "^43.1.1",
+    "eslint": "^10.7.0",
+    "prettier": "^3.9.5"
   }
 }

@@ -1,96 +1,144 @@
 # Race-Engineer
 
-Race-Engineer is an Electron desktop app for real-time iRacing telemetry with a Python backend.
+## About
 
-## Download
+A real-time dashboard for sim racers who want a virtual race engineer and pit
+crew at their side. Monitor critical vehicle telemetry, track race conditions,
+analyse performance and make smarter strategy decisions throughout every session.
 
-[Download **Race-Engineer.msi**](https://github.com/FonzieDK/Race-Engineer/releases/latest/download/Race-Engineer.msi)
+[Download the latest **Race-Engineer.msi**](https://github.com/FonzieDK/Race-Engineer/releases/latest/download/Race-Engineer.msi)
+| [View the changelog](CHANGELOG.md)
 
 ## Requirements
 
 - Windows 10 or 11 (64-bit)
 - iRacing installed
-- iRacing running when live telemetry is required
+- An active iRacing session for live telemetry and simulator controls
 
-The MSI installer includes Electron, Node.js, and the Python runtime. Installed users
-do not need to install these tools separately.
+The MSI includes Electron, Node.js and the Python runtime. Users installing the
+MSI do not need to install those tools separately.
 
-## Windows MSI installer
+## Features & data
 
-Build a 64-bit Windows installer from PowerShell:
+### Overview
+
+<img src="docs/images/overview.png" alt="Race-Engineer overview showing session, focused driver and car telemetry" width="100%">
+
+_Overview with session data, the focused car and live car health. Values shown in
+the screenshots are examples from an iRacing session._
+
+- Session time, in-game time, lap count and circuit
+- Focused driver, car, class position, lap progress, gear, RPM and speed
+- Per-corner tyre temperature, pressure and wear
+- Per-corner brake temperature and colour-coded condition indicators
+- Live oil and water temperatures with recent history
+- Fuel level, battery voltage and race-engineering alerts
+- Configurable speed, temperature, pressure and fuel units
+
+### Leaderboard & events
+
+<img src="docs/images/leaderboards.png" alt="Race-Engineer multi-class leaderboard and race-event feed" width="100%">
+
+_Multi-class standings and the live race-event feed._
+
+- Overall and class position, car, team and driver
+- Gap, interval, current lap, last lap and best lap
+- Last pit lap, pit duration, tyre compound and track status
+- Multi-class filters with live car counts and class colours
+- Mouse and keyboard selection of the focused iRacing camera car
+- Position changes, driver swaps and incidents in the event feed
+- Saved events and timed replay playback with automatic return to live data
+- Background event collection after the dashboard window is closed
+
+### Track map, weather & fuel
+
+<img src="docs/images/track-map.png" alt="Race-Engineer track map with live cars, weather and pit-exit prediction" width="100%">
+
+_Live circuit map, pit-exit prediction and track conditions._
+
+- Official iRacing circuit layout with car numbers and class colours
+- Focused-car highlighting, pit-lane status and class filtering
+- Smooth 60 Hz car-position updates
+- Pit-exit traffic prediction
+- Rotating follow map with speed-dependent zoom
+- Track temperature, wetness, rubber state and declared-wet status
+- Air temperature, skies, humidity, precipitation, fog and wind
+- Fuel range, recent consumption, fuel-at-finish estimate and recommended fuel add
+
+### Pit setup & desktop tools
+
+- Select individual tyre changes and supported tyre compounds
+- Set target tyre pressures and refuelling amount
+- Configure windscreen tear-off and supported pit services
+- Send supported pit commands directly to iRacing from the local dashboard
+- Open Overview, Leaderboard, Track Map and Pit Setup as independent always-on-top overlays
+- Resize overlays and control their opacity, fullscreen state and position lock
+- Persist overlay size, position and preferences between launches
+- Optional background collector start with Windows
+
+> [!NOTE]
+> Available telemetry varies by car and session. Tyre wear, pressure, fuel,
+> battery and some pit controls may only be available for the driver's own car
+> or for cars that expose the corresponding iRacing SDK fields.
+
+## Data flow and storage
+
+Race-Engineer reads the local iRacing SDK feed. The Python service exposes the
+processed snapshot only to the Electron dashboard on `127.0.0.1`; this local-only
+binding is important because the API can send supported commands to the simulator.
+
+Development event data is stored in `sql/events.db`. An installed app stores
+configuration, logs, overlay state and the event database under
+`%APPDATA%\Race-Engineer`. Closing the dashboard does not stop an already running
+event collector, and a single-instance lock prevents duplicate collectors.
+
+## Install and run
+
+For normal use, download and run the MSI linked above. It creates Start menu and
+desktop shortcuts.
+
+To run from source:
+
+```powershell
+python -m pip install -r requirements/runtime.txt
+npm install
+npm start
+```
+
+## Build the Windows installer
+
+The build computer requires Python, Node.js LTS and WiX Toolset 3.14:
 
 ```powershell
 npm run make:msi
 ```
 
-The build requires Python, Node.js LTS, and WiX Toolset 3.14 on the build PC. The
-finished `.msi` is written below `out/make/`. Installed users do not need Python,
-Node.js, Electron, or WiX. The installer creates Start-menu and desktop shortcuts.
-Writable configuration, logs, and the event database are stored below the current
-user's `%APPDATA%\Race-Engineer` directory rather than in `Program Files`.
+The finished 64-bit MSI is written below `out/make/`.
 
-To save local changes to GitHub, double-click `scripts/commit_to_github.bat`. Enter a commit
-message, or press Enter to use the default. The script commits the changes, synchronizes
-with `main`, and pushes them to `FonzieDK/Race-Engineer`.
+## Development checks
 
-The event collector keeps running after the Race-Engineer window is closed. It reads the local
-iRacing SDK feed, so closing Electron does not interrupt event collection. Its single-instance
-lock prevents duplicate collectors. A normal launch registers a collector-only Windows login
-start, so later reboots restart collection without opening the Race-Engineer window. Development
-data is stored in `sql/events.db`; an installed app stores it in
-`%APPDATA%\Race-Engineer\sql\events.db`.
+Install runtime and build dependencies, then run the same checks used by CI:
 
-## OVERVIEW
+```powershell
+python -m pip install -r requirements/runtime.txt -r requirements/build.txt
+npm ci
+npm run check
+```
 
-![Race-Engineer Overview](docs/images/overview.png)
-
-### Features
-
-- Live session information, including time remaining, in-game time, lap count, and track name
-- Focused driver and car details with class position, completed laps, lap progress, gear, RPM, and speed
-- Live race-engineering and strategy alerts
-- Per-corner tyre temperatures, pressures, and wear with colour-coded status indicators
-- Per-corner brake temperatures plus engine-temperature and RPM monitoring
-- Live fuel level with an estimated fuel-empty lap
-- GTP battery-voltage monitoring when supported by the selected car
-
-## LEADERBOARDS
-
-![Race-Engineer Leaderboards](docs/images/leaderboards.png)
-
-### Features
-
-- Focused-car summary with current lap, position, last lap, and best lap
-- Live standings with class position, car and team details, gaps, intervals, lap times, pit information, tyre compound, and race status
-- Multi-class filtering with live car counts and class-specific colours
-- Clickable and keyboard-accessible rows for changing the focused iRacing camera car
-- Race-event feed for position changes, driver swaps, incidents, and saved events
-- Event saving and timed replay playback with an automatic return to the live session
-- Background event collection that continues after the dashboard window is closed
-
-## TRACK MAP
-
-![Race-Engineer Track Map](docs/images/track-map.png)
-
-### Features
-
-- Official iRacing circuit layout with live, colour-coded car positions and car numbers
-- Focused-car highlighting, pit-lane status, and multi-class map filtering
-- Smooth 60 Hz map updates for close real-time tracking
-- Pit-exit traffic prediction showing where the focused car is expected to rejoin
-- Dynamic follow map with smooth rotation and speed-dependent zoom around the focused car
-- Switchable large-map view between the track map, pit-exit prediction, and dynamic follow map
-- Live weather and track conditions, including wind, temperature, humidity, wetness, skies, and declared-wet status
-
-## Future Enhancements
-
-- Advanced pit strategy calculations
-- Data logging and analysis
-- Real-time strategy suggestions
+See [Project structure](docs/PROJECT_STRUCTURE.md) for a directory overview.
 
 ## Troubleshooting
 
-- Ensure iRacing is running before starting Race-Engineer.
-- If connection fails, check that iRacing has an active session and restart the app.
-- For issues with dependencies, try reinstalling with `python scripts/setup_iracing_env.py`.
-- If Electron does not open, make sure Node.js is installed and run `npm install`.
+- Start or join an iRacing session before expecting live data.
+- If the dashboard remains disconnected, restart Race-Engineer and verify that
+  iRacing has an active session.
+- If a source checkout is missing Python dependencies, run
+  `python scripts/setup_iracing_env.py`.
+- If Electron does not open from a source checkout, run `npm install` and try
+  `npm start` again.
+
+## Roadmap
+
+- Extended pit-strategy calculations
+- Session-data export and post-race analysis
+- Additional real-time strategy recommendations

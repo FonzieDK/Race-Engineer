@@ -5,96 +5,136 @@ const test = require("node:test");
 
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
-const script = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "web", "app.css"), "utf8");
-const telemetry = fs.readFileSync(path.join(root, "race_engineer", "telemetry.py"), "utf8");
-const electronMain = fs.readFileSync(path.join(root, "electron", "main.js"), "utf8");
+const app = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
 
-test("test tab contains a live weather view using the official track layers", () => {
-  assert.doesNotMatch(html, /id="awaiting-data"/);
-  assert.match(html, /data-screen-panel="test"[\s\S]*class="test-weather-dashboard"/);
-  assert.doesNotMatch(html, /class="test-weather-summary"/);
-  assert.doesNotMatch(html, /id="test-weather-(?:date|time|type)"/);
-  assert.match(html, /id="test-weather-map"[\s\S]*id="test-weather-map-layers"/);
-  assert.match(html, /id="test-weather-map-content"/);
-  assert.doesNotMatch(html, /test-weather-start-finish-sensor/);
-  assert.match(css, /#test-weather-map circle\s*\{[\s\S]*?display: none !important;/);
-  assert.match(html, /id="test-weather-track-outline" class="test-weather-track-outline"/);
-  assert.match(html, /id="test-weather-cloud-layer"/);
-  assert.match(html, /id="test-weather-zoom-toggle"[\s\S]*aria-pressed="false"/);
-  assert.match(css, /\.test-weather-zoom-toggle\s*\{[\s\S]*?top:\s*14px;[\s\S]*?right:\s*14px;/);
-  assert.doesNotMatch(html, /test-weather-panel-head/);
-  assert.doesNotMatch(html, /id="test-weather-cloud-status"/);
-  assert.doesNotMatch(html, /SDK values/);
-  assert.match(html, /class="test-weather-compare"/);
-  assert.match(html, /id="test-weather-radar-canvas"/);
-  assert.doesNotMatch(html, /id="test-weather-radar-track-outline"/);
-  assert.match(html, /id="test-weather-forecast" class="test-weather-forecast"/);
-  assert.match(html, /class="test-weather-forecast-hour is-current"[\s\S]*12:05 am/);
-  assert.match(css, /\.test-weather-forecast-track\s*\{[\s\S]*grid-template-columns: repeat\(9/);
-  assert.match(css, /\.test-weather-layout\s*\{[\s\S]*grid-template-columns: minmax\(420px, 1fr\) minmax\(520px, 0\.8fr\)/);
-  assert.match(css, /\.test-weather-map-card\s*\{[\s\S]*grid-template-rows: minmax\(0, 1fr\) auto/);
-  assert.match(css, /\.test-weather-square\s*\{[\s\S]*aspect-ratio: auto/);
-  assert.match(css, /\[data-screen-panel="test"\]\.is-visible\s*\{[\s\S]*?overflow: hidden/);
-  assert.match(css, /\.test-weather-dashboard\s*\{[\s\S]*?height: 100%;[\s\S]*?min-height: 0/);
-  assert.match(css, /\.test-weather-layout\s*\{[\s\S]*?height: auto;[\s\S]*?overflow: hidden/);
-  assert.match(css, /\.test-weather-compare\s*\{[\s\S]*?height: 100%;[\s\S]*?overflow: hidden/);
-  assert.match(css, /\.test-weather-map-card\s*\{[\s\S]*?height: 100%;[\s\S]*?min-height: 0/);
-  assert.doesNotMatch(script, /testWeatherEstimateCardEl\?\.append\(testWeatherForecastEl\)/);
-  assert.match(html, /id="test-weather-precipitation"/);
-  assert.doesNotMatch(html, /test-weather-rain-overlay/);
-  assert.match(html, /id="test-weather-radar-badge"[\s\S]*SIMULATED PRECIPITATION/);
-  assert.doesNotMatch(html, />Current conditions<\/span>/);
-  assert.doesNotMatch(html, /test-weather-data-note/);
-  assert.match(html, /Cell positions are simulated; intensity and movement use live iRacing telemetry/);
-  assert.match(script, /function syncTestWeatherMapLayers\(\)/);
-  assert.match(script, /use\.setAttribute\("href", `#\$\{id\}`\)/);
-});
+test("test tab is empty while the pit setup prototype is used by car setup", () => {
+  assert.match(html, /app\.js\?v=20260724-car-pit-three-columns/);
+  const testPanel = html.match(
+    /<section class="screen" data-screen-panel="test"[\s\S]*?<\/section>\s*<section class="screen" data-screen-panel="car-setup-pit"/,
+  )?.[0] || "";
+  const carSetupPanel = html.slice(
+    html.indexOf('<section class="screen" data-screen-panel="car-setup-pit"'),
+    html.indexOf('<section class="screen" data-screen-panel="fuel"'),
+  );
 
-test("weather view drives a clearly labelled simulated field from verified telemetry", () => {
-  assert.match(telemetry, /_get_var\("Precipitation"\)/);
-  assert.match(telemetry, /weekend_info\.get\("TrackWeatherType"\)/);
-  assert.match(telemetry, /"precipitation": precipitation/);
-  assert.match(script, /getRainPresentation\(weather\.precipitation\)/);
-  assert.doesNotMatch(script, /formatWeatherType/);
-  assert.match(script, /function getRainVisualState\(rainState, precipitation\)/);
-  assert.match(script, /weather\.rain_state/);
-  assert.match(script, /dataset\.rain = rain/);
-  assert.match(script, /dataset\.cloudCover = cover \|\| "unknown"/);
-  assert.match(css, /@keyframes weather-cloud-drift/);
-  assert.match(css, /@keyframes weather-rain-fall/);
-  assert.match(css, /data-rain="heavy"/);
-  assert.match(script, /function drawSimulatedPrecipitationField\(/);
-  assert.match(script, /function updateSimulatedPrecipitationField\(weather, hasRecentTelemetry\)/);
-  assert.match(script, /testWeatherRadarState\.windDirection/);
-  assert.match(script, /testWeatherRadarState\.windSpeed/);
-  assert.match(script, /updateSimulatedPrecipitationField\(weather, hasRecentTelemetry\)/);
-  assert.doesNotMatch(script, /WEATHER_RADAR_UPDATE_SECONDS/);
-  assert.doesNotMatch(script, /lastWeatherRadarSignature/);
-  assert.match(css, /\.test-weather-compare\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
-  assert.doesNotMatch(electronMain, /desktopCapturer/);
-  assert.doesNotMatch(electronMain, /thumbnail\.crop/);
-  assert.match(script, /formatIngameTime\(telemetry\.session_time_of_day\)/);
-  assert.doesNotMatch(html, /test-weather-map-footer/);
-  assert.doesNotMatch(html, /test-weather-rain-scale/);
-  assert.doesNotMatch(html, /test-weather-map-wind/);
-  assert.doesNotMatch(html, /test-weather-map-reading/);
-  assert.doesNotMatch(html, /test-weather-map-rain/);
-  assert.doesNotMatch(html, /test-weather-compass/);
-  assert.doesNotMatch(html, /test-weather-wind-arrow/);
-  assert.match(script, /outlineEl\.setAttribute\("d", trackPathData\)/);
-  assert.match(script, /contentEl\.setAttribute\("transform", `rotate\(90 /);
-  assert.match(script, /const measurementEl = trackPathData \? outlineEl : layersEl/);
-  assert.match(script, /const box = measurementEl\.getBBox\(\)/);
-  assert.match(script, /const zoomScale = isTestWeatherZoomedOut \? 3 : 1/);
-  assert.match(script, /setTestWeatherViewBox\(weatherMapEl, centerX, centerY, box\.height, box\.width, padding\)/);
-  assert.match(script, /testWeatherZoomToggleEl\?\.addEventListener\("click"/);
-  assert.match(script, /layersEl\.replaceChildren\(\);/);
-});
-
-test("live telemetry freshness uses receipt time and recovers from a silent stream", () => {
-  assert.match(html, /<script src="\/app\.js\?v=[^"]+"><\/script>/);
-  assert.match(script, /Date\.now\(\) - lastSnapshotAt <= freshnessLimitMs/);
-  assert.doesNotMatch(script, /Date\.now\(\) - updatedAtMs <= freshnessLimitMs/);
-  assert.match(script, /Date\.now\(\) - lastSnapshotAt > 1000[\s\S]*loadState\(\)/);
+  assert.doesNotMatch(testPanel, /class="test-pit"/);
+  assert.match(carSetupPanel, /id="pit-setup-prototype" hidden aria-hidden="true"/);
+  assert.match(carSetupPanel, /class="test-pit"/);
+  assert.match(carSetupPanel, /data-test-tire/g);
+  assert.match(carSetupPanel, /data-test-service-toggle/);
+  assert.match(carSetupPanel, /id="test-pit-now"/);
+  assert.doesNotMatch(testPanel, /class="test-racing-data"/);
+  assert.equal((testPanel.match(/data-test-status-copy/g) || []).length, 0);
+  assert.doesNotMatch(testPanel, /data-copy-title="Car Status"/);
+  assert.doesNotMatch(testPanel, /class="test-pit-side-by-side"/);
+  assert.match(
+    html,
+    /data-screen-panel="car-setup-pit"[\s\S]*?data-car-status-target[\s\S]*?class="test-pit-status-copy test-car-status-stage car-setup-pit-status-copy"[\s\S]*?aria-label="Pit setup" hidden[\s\S]*?class="cumulation-stack"/,
+  );
+  assert.match(
+    css,
+    /\.car-setup-layout\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\) 230px;/,
+  );
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.reference-corner \.tyre-pressure-gauge\s*\{\s*display:\s*none !important;/,
+  );
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.reference-corner \.tyre-wear-rail\s*\{\s*display:\s*none !important;/,
+  );
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.reference-corner \.corner-wear\s*\{[\s\S]*?z-index:\s*14;[\s\S]*?margin-top:\s*-25px;/,
+  );
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.reference-corner \.status-tyre > span\s*\{[\s\S]*?font-size:\s*12px;/,
+  );
+  assert.match(
+    css,
+    /\.corner-wear em > span\s*\{[\s\S]*?display:\s*inline !important;/,
+  );
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.front-tyre-card \.corner-wear em\s*\{\s*transform:\s*translateY\(-2px\) !important;/,
+  );
+  assert.match(app, /label\.textContent = "EST\."/);
+  assert.match(app, /value\.textContent = "\+2\.5 S"/);
+  assert.match(app, /label\.style\.setProperty\("color", "#54cde1", "important"\)/);
+  assert.match(app, /value\.style\.setProperty\("color", "#ffffff", "important"\)/);
+  assert.match(app, /copiedCarGrid\.append\(repairButton\)/);
+  assert.match(app, /topRepairButton\.classList\.add\("test-repair-top"\)/);
+  assert.match(app, /topRepairButton\.classList\.add\("test-windscreen-tearoff"\)/);
+  assert.match(app, /querySelector\("b"\)\.textContent = "WINDSHIELD"/);
+  assert.match(app, /querySelector\("small"\)\.textContent = "TEAROFF"/);
+  assert.match(app, /toggleTestWindscreenTearoff\(topRepairButton\)/);
+  assert.match(app, /fetch\("\/api\/pit\/windscreen-tearoff"/);
+  assert.match(app, /copiedCarGrid\.append\(topRepairButton\)/);
+  assert.match(css, /\.test-pit-status-copy \.reference-car-status > \.test-repair/);
+  assert.match(
+    css,
+    /\.test-pit-status-copy \.reference-car-status > \.test-repair\.test-repair-top\s*\{[\s\S]*?grid-row:\s*1;/,
+  );
+  assert.match(css, /transform:\s*translateY\(-23px\)/);
+  assert.match(html, /class="test-repair"[^>]*hidden/);
+  assert.match(app, /testRepairButton\.hidden = !hasAvailableFastRepair/);
+  assert.match(app, /\["DRY", "WET"\]\.forEach/);
+  assert.match(app, /fetch\("\/api\/pit\/tire-compound"/);
+  assert.match(app, /JSON\.stringify\(\{ compound \}\)/);
+  assert.match(app, /button\.disabled = isSelected/);
+  assert.match(app, /syncTestTireCompoundFromTelemetry\(telemetry\.pit_tire_compound\)/);
+  assert.match(
+    app,
+    /\["lf", "rf", "lr", "rr"\]\.forEach\(\(wheel\) => \{[\s\S]*?testTireChangeStates\.set\(wheel, true\)/,
+  );
+  assert.match(app, /"M724 91H677V190H630"/);
+  assert.match(app, /"M724 536H684V452H645"/);
+  assert.match(css, /\.test-pit-status-copy \.test-compound-card/);
+  assert.match(css, /\.test-pit-status-copy \.test-right-tire-stack\s*\{[\s\S]*?justify-content:\s*space-between;/);
+  assert.match(css, /\.test-pit-status-copy \.test-right-tire-stack\s*\{[\s\S]*?transform:\s*translateX\(-34px\)/);
+  assert.match(css, /\.test-pit-status-copy \.test-compound-card\s*\{[\s\S]*?height:\s*56px;/);
+  assert.match(
+    css,
+    /\.test-pit-status-copy \.test-compound-group\s*\{[\s\S]*?gap:\s*10px;[\s\S]*?transform:\s*translateX\(64px\);/,
+  );
+  assert.match(css, /\.reference-corner-rr \.status-tyre,[\s\S]*?translateY\(-7px\) !important;/);
+  assert.match(css, /\.test-right-tire-stack > \.reference-corner > b\s*\{[\s\S]*?right:\s*-28px !important;/);
+  assert.match(css, /\.test-right-tire-stack > \.reference-corner-fr\s*\{\s*transform:\s*translateY\(35px\) !important;/);
+  assert.match(css, /\.test-right-tire-stack > \.reference-corner-fr > b\s*\{\s*transform:\s*translateY\(9px\) !important;/);
+  assert.match(css, /\.test-pit > \.test-pit-car-grid\s*\{\s*display:\s*none;/);
+  assert.match(app, /tireCard\.querySelector\("span"\)\.textContent = "TIRE"/);
+  assert.match(app, /tireCard\.querySelector\("small"\)\.remove\(\)/);
+  assert.match(app, /changeToggle\.textContent = "CHANGE"/);
+  assert.match(app, /\{ FR: "RF", RL: "LR" \}/);
+  assert.match(app, /dataset\.testStatusTire = wheel/);
+  assert.match(app, /fetch\("\/api\/pit\/tire-change"/);
+  assert.match(app, /JSON\.stringify\(\{ wheel, enabled \}\)/);
+  assert.match(app, /changeToggle\.addEventListener\("click", \(\) => toggleTestTireChange\(wheel\)\)/);
+  assert.match(app, /syncTestStatusCopyTelemetry\(\)/);
+  assert.doesNotMatch(
+    app,
+    /MutationObserver\(\(\) => \{[\s\S]*?renderTestStatusCopies\(\);[\s\S]*?\}\)\.observe/,
+  );
+  assert.match(app, /testTireChangeStates\.set\(wheel, enabled\)/);
+  assert.doesNotMatch(app, /testTireChangeStates\.set\(wheel, wasSelected\)/);
+  assert.match(app, /syncTestTireChangesFromTelemetry\(pitTireChanges\)/);
+  assert.match(
+    app,
+    /\["lf", "rf", "lr", "rr"\]\.forEach\(\(position\) => \{[\s\S]*?testTireChangeSyncAfter\.set\(position, telemetrySyncDeadline\)/,
+  );
+  assert.match(app, /function updateTestTireToggleVisual\(wheel\)/);
+  assert.match(
+    app,
+    /testTireChangePending\.add\(wheel\);[\s\S]*?updateTestTireToggleVisual\(wheel\);/,
+  );
+  assert.match(css, /\.test-pit-status-copy \.test-status-tire-toggle/);
+  assert.match(css, /\.test-status-tire-toggle\[aria-pressed="true"\]/);
+  assert.match(
+    css,
+    /\.test-pit-status-copy\.test-car-status-stage \.reference-corner\s*\{[\s\S]*?z-index:\s*11;[\s\S]*?pointer-events:\s*auto;/,
+  );
+  assert.match(css, /\.test-status-tire-toggle\.has-command-error/);
+  assert.match(css, /\.test-pit-status-copy \.corner-wear em b\s*\{[\s\S]*?font-weight:\s*900;/);
 });

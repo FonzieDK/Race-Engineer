@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, dialog, globalShortcut, ipcMain, screen } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -10,12 +10,15 @@ const {
 } = require("./window-state");
 
 let mainWindow = null;
+const overlayWindows = new Map();
 let backendProcess = null;
 let isQuitting = false;
 let backendRestartTimer = null;
 let collectorProcess = null;
 let windowStateSaveTimer = null;
 const collectorOnly = process.argv.includes("--collector-only");
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+const MAX_LOG_BACKUPS = 3;
 
 function getProjectRoot() {
   return path.resolve(__dirname, "..");
@@ -95,6 +98,30 @@ function registerCollectorAtLogin() {
   }
 }
 
+function unregisterCollectorAtLogin() {
+  spawnSync(
+    "reg.exe",
+    ["DELETE", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "RaceEngineerCollector", "/f"],
+    { windowsHide: true, encoding: "utf8" },
+  );
+}
+
+function isCollectorStartupEnabled() {
+  return getConfig().start_collector_with_windows === true;
+}
+
+function setCollectorStartupEnabled(enabled) {
+  const configPath = ensureUserConfig();
+  const config = getConfig();
+  config.start_collector_with_windows = Boolean(enabled);
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  if (process.platform === "win32") {
+    if (enabled) registerCollectorAtLogin();
+    else unregisterCollectorAtLogin();
+  }
+  return config.start_collector_with_windows;
+}
+
 function getLogPath(name) {
   const logDir = path.join(getDataRoot(), "logs");
   fs.mkdirSync(logDir, { recursive: true });
@@ -102,8 +129,21 @@ function getLogPath(name) {
 }
 
 function appendLog(name, message) {
+  const logPath = getLogPath(name);
+  try {
+    if (fs.existsSync(logPath) && fs.statSync(logPath).size >= MAX_LOG_BYTES) {
+      for (let index = MAX_LOG_BACKUPS; index >= 1; index -= 1) {
+        const source = index === 1 ? logPath : `${logPath}.${index - 1}`;
+        const target = `${logPath}.${index}`;
+        if (fs.existsSync(target)) fs.rmSync(target);
+        if (fs.existsSync(source)) fs.renameSync(source, target);
+      }
+    }
+  } catch (error) {
+    console.error("Unable to rotate Race-Engineer log:", error);
+  }
   const line = `[${new Date().toISOString()}] ${message}\n`;
-  fs.appendFileSync(getLogPath(name), line, "utf8");
+  fs.appendFileSync(logPath, line, "utf8");
 }
 
 function getConfig() {
@@ -272,6 +312,130 @@ function getWindowStatePath() {
   return path.join(app.getPath("userData"), "window-state.json");
 }
 
+function getOverlayStatePath(screenName) {
+  return path.join(app.getPath("userData"), `overlay-state-${screenName}.json`);
+}
+
+function loadOverlayState(screenName) {
+  try {
+    const state = JSON.parse(fs.readFileSync(getOverlayStatePath(screenName), "utf8"));
+    return state && typeof state === "object" ? state : {};
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      appendLog("race-engineer-electron.log", `Unable to load overlay state: ${error.message}`);
+    }
+    return {};
+  }
+}
+
+function persistOverlayState(screenName) {
+  const entry = overlayWindows.get(screenName);
+  if (!entry || entry.window.isDestroyed()) return;
+  if (entry.saveTimer) clearTimeout(entry.saveTimer);
+  entry.saveTimer = null;
+  try {
+    const bounds = entry.window.getBounds();
+    const display = screen.getDisplayMatching(bounds);
+    fs.writeFileSync(getOverlayStatePath(screenName), `${JSON.stringify({
+      bounds,
+      displayId: String(display.id),
+      displayWorkArea: display.workArea,
+      screen: screenName,
+      locked: entry.locked,
+      opacity: entry.window.getOpacity(),
+    }, null, 2)}\n`, "utf8");
+  } catch (error) {
+    appendLog("race-engineer-electron.log", `Unable to save overlay state: ${error.message}`);
+  }
+}
+
+function scheduleOverlayStateSave(screenName) {
+  const entry = overlayWindows.get(screenName);
+  if (!entry) return;
+  if (entry.saveTimer) clearTimeout(entry.saveTimer);
+  entry.saveTimer = setTimeout(() => persistOverlayState(screenName), 250);
+  entry.saveTimer.unref?.();
+}
+
+function setOverlayLocked(screenName, locked) {
+  const entry = overlayWindows.get(screenName);
+  if (!entry || entry.window.isDestroyed()) return false;
+  entry.locked = Boolean(locked);
+  // Lock only the window position. The overlay must remain interactive so its
+  // controls never become click-through to iRacing.
+  entry.window.setMovable(!entry.locked);
+  entry.window.webContents.send("race-engineer:overlay-lock-changed", entry.locked);
+  scheduleOverlayStateSave(screenName);
+  return entry.locked;
+}
+
+function getOverlayEntryForEvent(event) {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  return Array.from(overlayWindows.entries()).find(([, entry]) => entry.window === senderWindow) || null;
+}
+
+function createOrShowOverlay(screenName) {
+  const allowedScreens = new Set(["overview", "leaderboard", "map", "car-setup-pit"]);
+  if (!allowedScreens.has(screenName)) return false;
+  const existingEntry = overlayWindows.get(screenName);
+  if (existingEntry && !existingEntry.window.isDestroyed()) {
+    existingEntry.window.show();
+    existingEntry.window.focus();
+    return true;
+  }
+
+  const savedState = loadOverlayState(screenName);
+  const restoredState = restoreWindowState(
+    savedState.bounds ? { ...savedState, isFullScreen: false, isMaximized: false } : null,
+    screen.getAllDisplays(),
+    screen.getPrimaryDisplay(),
+  );
+  const defaultBounds = { width: 900, height: 600 };
+  const overlayWindow = new BrowserWindow({
+    ...(restoredState.hasSavedBounds ? restoredState.bounds : defaultBounds),
+    center: !restoredState.hasSavedBounds,
+    minWidth: 420,
+    minHeight: 280,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
+    title: `Race-Engineer Overlay - ${screenName}`,
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+  const entry = { window: overlayWindow, locked: false, saveTimer: null };
+  overlayWindows.set(screenName, entry);
+  overlayWindow.setAlwaysOnTop(true, "screen-saver");
+  overlayWindow.setMovable(true);
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayWindow.setOpacity(Math.max(0.35, Math.min(1, Number(savedState.opacity) || 1)));
+  overlayWindow.on("move", () => scheduleOverlayStateSave(screenName));
+  overlayWindow.on("resize", () => scheduleOverlayStateSave(screenName));
+  const sendOverlayFullscreenState = () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send(
+        "race-engineer:overlay-fullscreen-changed",
+        overlayWindow.isFullScreen(),
+      );
+    }
+  };
+  overlayWindow.on("enter-full-screen", sendOverlayFullscreenState);
+  overlayWindow.on("leave-full-screen", sendOverlayFullscreenState);
+  overlayWindow.on("close", () => persistOverlayState(screenName));
+  overlayWindow.on("closed", () => {
+    overlayWindows.delete(screenName);
+  });
+  overlayWindow.loadURL(`${getBackendUrl()}/?overlay=${encodeURIComponent(screenName)}`);
+  return true;
+}
+
 function persistWindowState() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -346,6 +510,9 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    overlayWindows.forEach(({ window }) => {
+      if (!window.isDestroyed()) window.close();
+    });
   });
 
 }
@@ -395,11 +562,50 @@ ipcMain.handle("race-engineer:toggle-fullscreen", () => {
   return shouldEnterFullscreen;
 });
 
+ipcMain.handle("race-engineer:open-overlay", (_event, screenName) => (
+  createOrShowOverlay(String(screenName || ""))
+));
+ipcMain.handle("race-engineer:set-overlay-locked", (event, locked) => {
+  const target = getOverlayEntryForEvent(event);
+  return target ? setOverlayLocked(target[0], locked) : false;
+});
+ipcMain.handle("race-engineer:set-overlay-opacity", (event, opacity) => {
+  const target = getOverlayEntryForEvent(event);
+  if (!target) return false;
+  const [screenName, entry] = target;
+  entry.window.setOpacity(Math.max(0.35, Math.min(1, Number(opacity) || 1)));
+  scheduleOverlayStateSave(screenName);
+  return entry.window.getOpacity();
+});
+ipcMain.handle("race-engineer:toggle-overlay-fullscreen", (event) => {
+  const target = getOverlayEntryForEvent(event);
+  if (!target) return false;
+  const [screenName, entry] = target;
+  const shouldEnterFullscreen = !entry.window.isFullScreen();
+  // A frameless window can otherwise retain its locked movement state while
+  // fullscreen. Always unlock it first so the toolbar remains interactive.
+  if (shouldEnterFullscreen && entry.locked) setOverlayLocked(screenName, false);
+  entry.window.setMovable(true);
+  entry.window.setFullScreen(shouldEnterFullscreen);
+  return shouldEnterFullscreen;
+});
+ipcMain.handle("race-engineer:close-overlay", (event) => {
+  const target = getOverlayEntryForEvent(event);
+  if (!target) return false;
+  target[1].window.close();
+  return true;
+});
+
+ipcMain.handle("race-engineer:get-startup-enabled", () => isCollectorStartupEnabled());
+ipcMain.handle("race-engineer:set-startup-enabled", (_event, enabled) => (
+  setCollectorStartupEnabled(enabled === true)
+));
+
 app.whenReady().then(() => {
   app.setAppUserModelId("com.infinxt.raceengineer");
   ensureUserConfig();
   startEventCollector();
-  if (process.platform === "win32") {
+  if (process.platform === "win32" && isCollectorStartupEnabled()) {
     registerCollectorAtLogin();
   }
   if (collectorOnly) {
@@ -407,6 +613,12 @@ app.whenReady().then(() => {
     return;
   }
   bootApp();
+  globalShortcut.register("CommandOrControl+Shift+O", () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const target = Array.from(overlayWindows.entries())
+      .find(([, entry]) => entry.window === focusedWindow);
+    if (target) setOverlayLocked(target[0], !target[1].locked);
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -417,6 +629,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  globalShortcut.unregisterAll();
   stopBackend();
 });
 

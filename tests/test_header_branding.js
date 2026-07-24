@@ -7,13 +7,13 @@ const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
 const styles = fs.readFileSync(path.join(root, "web", "app.css"), "utf8");
 
-test("header includes the test screen and tab", () => {
-  assert.match(html, /data-screen="test"[^>]*>Weather<\/button>/i);
+test("header keeps the weather screen available without a tab", () => {
+  assert.doesNotMatch(html, /data-screen="test"[^>]*>Weather<\/button>/i);
   assert.match(html, /data-screen-panel="test"/i);
 });
 
 test("header includes car setup and car pit in the grouped tabs", () => {
-  assert.match(html, /data-screen="test"[^>]*>Weather<\/button>\s*<button[^>]*data-screen="car-setup-pit"[^>]*>Car Setup - Pit<\/button>/i);
+  assert.match(html, /data-screen="map"[^>]*>Track Map<\/button>\s*<button[^>]*data-screen="car-setup-pit"[^>]*>Car Setup - Pit<\/button>/i);
   assert.match(html, /data-screen-panel="car-setup-pit"/i);
   assert.match(styles, /\.screen-tabs\s*\{[^}]*grid-auto-columns:\s*max-content/s);
   assert.match(styles, /\.screen-tabs\s*\{[^}]*width:\s*max-content/s);
