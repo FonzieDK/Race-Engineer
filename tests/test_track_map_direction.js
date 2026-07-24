@@ -99,7 +99,7 @@ test("map interpolation rejects replay seeks and limits extrapolation", () => {
 
 test("compact auxiliary maps render less often than the large map", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "app.js"), "utf8");
-  assert.match(source, /const AUXILIARY_MAP_RENDER_INTERVAL_MS = 100/);
+  assert.match(source, /const AUXILIARY_MAP_RENDER_INTERVAL_MS = MAP_RENDER_INTERVAL_MS/);
   assert.match(source, /largeTrackMapIndex === 1 \|\| auxiliaryMapsDue/);
   assert.match(source, /largeTrackMapIndex === 2 \|\| auxiliaryMapsDue/);
 });

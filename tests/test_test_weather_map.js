@@ -13,20 +13,21 @@ test("test tab is empty while the pit setup prototype is used by car setup", () 
   const testPanel = html.match(
     /<section class="screen" data-screen-panel="test"[\s\S]*?<\/section>\s*<section class="screen" data-screen-panel="car-setup-pit"/,
   )?.[0] || "";
+  const carSetupPanel = html.slice(
+    html.indexOf('<section class="screen" data-screen-panel="car-setup-pit"'),
+    html.indexOf('<section class="screen" data-screen-panel="fuel"'),
+  );
 
-  assert.match(testPanel, /class="test-pit"/);
-  assert.match(testPanel, /data-test-tire/g);
-  assert.match(testPanel, /data-test-service-toggle/);
-  assert.match(testPanel, /id="test-pit-now"/);
+  assert.doesNotMatch(testPanel, /class="test-pit"/);
+  assert.match(carSetupPanel, /id="pit-setup-prototype" hidden aria-hidden="true"/);
+  assert.match(carSetupPanel, /class="test-pit"/);
+  assert.match(carSetupPanel, /data-test-tire/g);
+  assert.match(carSetupPanel, /data-test-service-toggle/);
+  assert.match(carSetupPanel, /id="test-pit-now"/);
   assert.doesNotMatch(testPanel, /class="test-racing-data"/);
   assert.equal((testPanel.match(/data-test-status-copy/g) || []).length, 0);
-  assert.match(testPanel, /class="test-pit" hidden aria-hidden="true"/);
   assert.doesNotMatch(testPanel, /data-copy-title="Car Status"/);
-  assert.match(testPanel, /class="test-pit-side-by-side"/);
-  assert.match(
-    css,
-    /\[data-screen-panel="test"\] \.test-pit-side-by-side\s*\{\s*display:\s*none !important;/,
-  );
+  assert.doesNotMatch(testPanel, /class="test-pit-side-by-side"/);
   assert.match(
     html,
     /data-screen-panel="car-setup-pit"[\s\S]*?data-car-status-target[\s\S]*?class="test-pit-status-copy test-car-status-stage car-setup-pit-status-copy"[\s\S]*?aria-label="Pit setup" hidden[\s\S]*?class="cumulation-stack"/,

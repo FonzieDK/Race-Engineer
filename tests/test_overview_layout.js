@@ -29,14 +29,14 @@ test("car status moves to the left of pit setup while overview keeps its origina
   assert.match(html, /data-pressure-wheel="lr"[\s\S]*status-tire-lr-pressure/);
   assert.match(html, /data-pressure-wheel="rr"[\s\S]*status-tire-rr-pressure/);
   assert.match(html, /data-screen-panel="car-setup-pit"[\s\S]*>Pit Setup<\/p>[\s\S]*>Cumulation<\/p>/);
-  assert.match(styles, /\.car-setup-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1\.25fr\) minmax\(0, 0\.75fr\) minmax\(0, 1fr\)[^}]*align-items:\s*stretch/s);
+  assert.match(styles, /\.car-setup-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\) 230px[^}]*align-items:\s*stretch/s);
   assert.match(styles, /\.charts-grid\.is-car-status-relocated \.overview-car-status-placeholder\s*\{[^}]*aspect-ratio:\s*0\.92/s);
   assert.match(styles, /\.test-car-status-stage \.car-status-module\s*\{[^}]*width:\s*min\(100%, 780px\)[^}]*height:\s*100%/s);
 });
 
 test("car setup follows the track map viewport sizing rules", () => {
   assert.match(styles, /\[data-screen-panel="car-setup-pit"\]\.is-visible\s*\{[^}]*overflow:\s*hidden/s);
-  assert.match(styles, /\.car-setup-layout\s*\{[^}]*height:\s*100%[^}]*min-height:\s*100%[^}]*grid-template-columns:\s*minmax\(0, 1\.25fr\) minmax\(0, 0\.75fr\) minmax\(0, 1fr\)[^}]*grid-template-rows:\s*minmax\(0, 1fr\)[^}]*overflow:\s*hidden/s);
+  assert.match(styles, /\.car-setup-layout\s*\{[^}]*height:\s*100%[^}]*min-height:\s*100%[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\) 230px[^}]*grid-template-rows:\s*minmax\(0, 1fr\)[^}]*overflow:\s*hidden/s);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.car-setup-layout\s*\{[^}]*grid-template-columns:\s*1fr[^}]*grid-template-rows:\s*none[^}]*height:\s*100%[^}]*overflow-y:\s*auto/s);
   assert.match(styles, /@media \(min-width: 1100px\) and \(max-height: 1100px\)[\s\S]*?\.car-setup-layout \.pit-car-plan\s*\{[^}]*max-width:\s*clamp\(136px, 16dvh, 168px\)/s);
 });
@@ -131,30 +131,25 @@ test("wheel controls retain their offset while the car has equal button spacing"
 });
 
 test("car expands to leave 10px to the wheel controls", () => {
+  const pitSetupMarkup = html.slice(
+    html.indexOf('data-screen-panel="car-setup-pit"'),
+    html.indexOf('data-screen-panel="fuel"'),
+  );
   assert.match(styles, /\.pit-pressure-grid\s*\{[^}]*gap:\s*10px 14px/s);
   assert.match(styles, /\.pit-car-plan\s*\{[^}]*width:\s*calc\(100% \+ 8px\)/s);
   assert.match(styles, /\.pit-car-plan\s*\{[^}]*aspect-ratio:\s*10 \/ 21/s);
   assert.match(styles, /\.pit-pressure-grid\s*\{[^}]*grid-template-rows:\s*auto repeat\(2, minmax\(128px, auto\)\)/s);
-  assert.doesNotMatch(html, /preserveAspectRatio="none"/);
+  assert.doesNotMatch(pitSetupMarkup, /preserveAspectRatio="none"/);
 });
 
-test("weather rain status and crew takeover share a row while tires returns to car setup", () => {
-  assert.match(html, /class="weather-service-icon-row"[\s\S]*?class="weather-rain-status-icon"[\s\S]*?id="weather-cloud-3d"/);
-  assert.match(html, /class="weather-rain-status-icon"[^>]*>[\s\S]*?<span>Weather<\/span>/);
-  assert.doesNotMatch(html, /<strong>85%<\/strong>/);
-  assert.match(styles, /\.weather-rain-status-icon\s*\{[^}]*border:\s*0[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s);
-  assert.match(styles, /\.weather-rain-status-icon\s*\{[^}]*gap:\s*7px/s);
-  assert.match(styles, /\.weather-rain-status-icon > span\s*\{[^}]*font-size:\s*0\.62rem/s);
-  assert.match(styles, /@keyframes weather-cloud-float-3d/);
-  assert.match(styles, /@keyframes weather-rain-drop-3d/);
-  assert.match(html, /class="weather-service-icon-row"[\s\S]*?id="pit-crew-takeover-toggle-adjacent"[\s\S]*?<span>Track<\/span>/);
+test("track weather and pit service controls remain available", () => {
+  assert.match(html, /class="map-weather-card"[\s\S]*?>Weather status<\/p>/);
+  assert.match(html, /id="track-temp"[\s\S]*id="track-wetness"[\s\S]*id="air-temp"/);
+  assert.match(html, /id="rain-state"[\s\S]*id="precipitation"[\s\S]*id="wind-speed"/);
   assert.match(html, /class="pit-car-service-row"[\s\S]*?id="pit-fast-repair-control"[\s\S]*?data-pit-all-tires-toggle[\s\S]*?<span>Tires<\/span>/);
   assert.match(styles, /\.pit-car-service-row\s*\{[^}]*display:\s*grid[^}]*grid-column:\s*1 \/ -1[^}]*grid-row:\s*1[^}]*width:\s*100%[^}]*grid-template-columns:\s*minmax\(66px, 1fr\) minmax\(76px, 1\.15fr\) minmax\(66px, 1fr\)/s);
-  assert.match(html, /id="track-wetness"[\s\S]*?class="weather-service-icon-row"[\s\S]*?class="weather-rain-status-icon"[\s\S]*?id="pit-crew-takeover-toggle-adjacent"/);
-  assert.match(styles, /\.weather-service-icon-row\s*\{[^}]*flex:\s*1[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*space-evenly[^}]*gap:\s*0/s);
   assert.match(styles, /\.pit-car-service-row \.pit-car-tearoff-toggle\s*\{[^}]*grid-column:\s*2[^}]*justify-self:\s*center/s);
   assert.match(html, /class="pit-car-plan"[\s\S]*?class="pit-fast-repair-control pit-fast-repair-control-bottom"[\s\S]*?id="pit-fast-repair-toggle-bottom"[\s\S]*?<span>Repair<\/span>/);
-  assert.equal((html.match(/data-pit-crew-takeover-toggle/g) || []).length, 1);
   assert.equal((html.match(/data-pit-fast-repair-toggle/g) || []).length, 1);
   assert.equal((html.match(/data-pit-all-tires-toggle/g) || []).length, 1);
   assert.match(html, /id="pit-crew-takeover" type="checkbox"/);
@@ -163,11 +158,6 @@ test("weather rain status and crew takeover share a row while tires returns to c
   assert.match(styles, /\.pit-fast-repair-control\s*\{[^}]*margin-top:\s*0/s);
   assert.match(styles, /\.pit-fast-repair-toggle\s*\{[^}]*width:\s*70px[^}]*min-height:\s*58px[^}]*border:\s*2px solid var\(--cyan\)[^}]*background:\s*linear-gradient\(160deg, #18242d, #101820\)[^}]*color:\s*var\(--cyan\)/s);
   assert.match(styles, /\.pit-fast-repair-toggle\[aria-pressed="true"\]\s*\{[^}]*border-color:\s*var\(--accent\)[^}]*background:\s*linear-gradient\(160deg, rgba\(150, 255, 67, 0\.2\), rgba\(150, 255, 67, 0\.07\)\)/s);
-  assert.doesNotMatch(styles, /\[data-pit-crew-takeover-toggle\]\s*\{[^}]*width:/s);
-  assert.match(script, /const pitCrewTakeoverToggleEls = Array\.from\(document\.querySelectorAll\("\[data-pit-crew-takeover-toggle\]"\)\)[\s\S]*?function syncPitCrewTakeover\(\)[\s\S]*?button\.disabled = !hasControl[\s\S]*?fetch\("\/api\/iracing\/take-seat"[\s\S]*?pitCrewTakeoverEl\.checked = takingControl/);
-  assert.match(html, /class="track-circuit-icon"[\s\S]*?id="track-circuit-route"[\s\S]*?animateMotion/);
-  assert.match(styles, /#pit-crew-takeover-toggle-adjacent[\s\S]*?background:\s*transparent[\s\S]*?@keyframes track-circuit-float-3d/);
-  assert.match(script, /fetch\("\/api\/iracing\/take-seat"[\s\S]*?fetch\("\/api\/iracing\/leave-seat"/);
   assert.match(script, /pitFastRepairToggleEls\.forEach[\s\S]*?pitFastRepairEl\.checked = !pitFastRepairEl\.checked[\s\S]*?telemetry\.fast_repairs_limit/);
   assert.match(styles, /\.pit-fast-repair-toggle:disabled,\s*\.pit-fast-repair-toggle:disabled:hover\s*\{[^}]*border-color:\s*#46515a[^}]*cursor:\s*not-allowed[^}]*filter:\s*grayscale\(0\.8\)[^}]*opacity:\s*0\.58/s);
   assert.match(script, /pitAllTiresToggleEl\?\.addEventListener\("click", async \(\) => \{[\s\S]*?\/api\/pit\/tire-change[\s\S]*?wheel: "all"[\s\S]*?String\(enabled\)/);
@@ -175,7 +165,8 @@ test("weather rain status and crew takeover share a row while tires returns to c
 
 test("cumulation header shows connected headset status", () => {
   assert.match(html, />Cumulation<\/p>[\s\S]*class="pit-headset-status"[\s\S]*Pit radio connected[\s\S]*<svg/);
-  assert.doesNotMatch(html, /class="pit-headset-status"[\s\S]*?<b>/);
+  const headsetMarkup = html.match(/<span class="pit-headset-status"[\s\S]*?<\/span>/)?.[0] || "";
+  assert.doesNotMatch(headsetMarkup, /<b>/);
   assert.match(html, /class="module car-setup-window cumulation-window"[\s\S]*class="car-setup-window-content cumulation-grid"[\s\S]*class="cumulation-panel"[\s\S]*class="cumulation-panel"/);
   assert.equal((html.match(/class="module car-setup-window cumulation-window"/g) || []).length, 2);
   assert.match(html, /aria-label="Cumulation"[\s\S]*>Cumulation<\/p>[\s\S]*aria-label="Fuel calculation"[\s\S]*>FUEL CAL<\/p>/);
