@@ -22,7 +22,7 @@ MSI do not need to install those tools separately.
 
 ### Overview
 
-<img src="docs/images/overview.png" alt="Race-Engineer overview showing session, focused driver and car telemetry" width="100%">
+<img src="IMG/OVERVIEW.png" alt="Race-Engineer overview showing session, focused driver and car telemetry" width="100%">
 
 _Overview with session data, the focused car and live car health. Values shown in
 the screenshots are examples from an iRacing session._
@@ -37,7 +37,7 @@ the screenshots are examples from an iRacing session._
 
 ### Leaderboard & events
 
-<img src="docs/images/leaderboards.png" alt="Race-Engineer multi-class leaderboard and race-event feed" width="100%">
+<img src="IMG/LEADERBOARDS.png" alt="Race-Engineer multi-class leaderboard and race-event feed" width="100%">
 
 _Multi-class standings and the live race-event feed._
 
@@ -50,9 +50,9 @@ _Multi-class standings and the live race-event feed._
 - Saved events and timed replay playback with automatic return to live data
 - Background event collection after the dashboard window is closed
 
-### Track map, weather & fuel
+### Track map & weather
 
-<img src="docs/images/track-map.png" alt="Race-Engineer track map with live cars, weather and pit-exit prediction" width="100%">
+<img src="IMG/TRACK_MAP.png" alt="Race-Engineer track map with live cars, weather and pit-exit prediction" width="100%">
 
 _Live circuit map, pit-exit prediction and track conditions._
 
@@ -63,14 +63,36 @@ _Live circuit map, pit-exit prediction and track conditions._
 - Rotating follow map with speed-dependent zoom
 - Track temperature, wetness, rubber state and declared-wet status
 - Air temperature, skies, humidity, precipitation, fog and wind
-- Fuel range, recent consumption, fuel-at-finish estimate and recommended fuel add
 
-### Pit setup & desktop tools
+### Car setup & pit
+
+<img src="IMG/CAR_SETUP.png" alt="Race-Engineer car status and pit setup dashboard" width="100%">
+
+_Live car status and pit-service configuration._
 
 - Select individual tyre changes and supported tyre compounds
 - Set target tyre pressures and refuelling amount
 - Configure windscreen tear-off and supported pit services
 - Send supported pit commands directly to iRacing from the local dashboard
+
+### Fuel (WIP)
+
+<img src="IMG/FUEL.png" alt="Race-Engineer work-in-progress fuel strategy dashboard" width="100%">
+
+_Work-in-progress fuel calculator and stint-planning dashboard._
+
+- Fuel range, recent consumption and fuel-at-finish estimates
+- Recommended fuel add and safety-margin calculations
+- Stint planning, refuelling windows and strategy alternatives
+
+### Test (development)
+
+<img src="IMG/TEST.png" alt="Race-Engineer empty test screen reserved for development" width="100%">
+
+_The Test/WIP screen is reserved for development and experimental features._
+
+### Desktop tools
+
 - Open Overview, Leaderboard, Track Map and Pit Setup as independent always-on-top overlays
 - Resize overlays and control their opacity, fullscreen state and position lock
 - Persist overlay size, position and preferences between launches
